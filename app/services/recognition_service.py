@@ -183,7 +183,7 @@ class RecognitionService:
                 "distances": distances
             }
             
-            logging.info(f"Threshold-passing matches for {name}:")
+            logging.info(f"TTTTTThreshold-passing matches for {name}:")
             logger.info(f"- Occurrences: {occurrences}")
             logger.info(f"- Average distance: {avg_distance:.4f}")
             logger.info(f"- Min distance: {min_distance:.4f}")
