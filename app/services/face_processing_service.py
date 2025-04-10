@@ -86,9 +86,25 @@ class FaceProcessingService:
             # Listamo sve fajlove u domain folderu
             all_files = os.listdir(domain_path)
             
+            # Pripremamo person string (zamenjujemo razmake sa '_')
+            sanitized_person = person.strip('"\'').replace(' ', '_')
+            
             # Filtriramo fajlove za osobu i datum
-            person_date_pattern = re.compile(rf"{re.escape(person)}_{re.escape(date_str)}")
-            matching_files = [f for f in all_files if person_date_pattern.search(f)]
+            matching_files = []
+            for f in all_files:
+                # Razdvajamo ime fajla na delove
+                parts = f.split('_')
+                # Rekonstruišemo ime osobe iz delova (sve do datuma)
+                file_person_parts = []
+                for part in parts:
+                    if len(part) >= 8 and (part[0:4].isdigit() or '-' in part):
+                        break
+                    file_person_parts.append(part)
+                file_person = '_'.join(file_person_parts)
+                
+                # Proveravamo da li se podudaraju osoba i datum
+                if file_person == sanitized_person and date_str in f:
+                    matching_files.append(f)
             
             logger.info(f"Found {len(matching_files)} images for {person} on {date_str} in domain {domain}")
             return len(matching_files)
@@ -111,9 +127,25 @@ class FaceProcessingService:
             # Listamo sve fajlove u domain folderu
             all_files = os.listdir(domain_path)
             
+            # Pripremamo person string (zamenjujemo razmake sa '_')
+            sanitized_person = person.strip('"\'').replace(' ', '_')
+            
             # Filtriramo fajlove za osobu
-            person_pattern = re.compile(rf"^{re.escape(person)}_")
-            matching_files = [f for f in all_files if person_pattern.search(f)]
+            matching_files = []
+            for f in all_files:
+                # Razdvajamo ime fajla na delove
+                parts = f.split('_')
+                # Rekonstruišemo ime osobe iz delova (sve do datuma)
+                file_person_parts = []
+                for part in parts:
+                    if len(part) >= 8 and (part[0:4].isdigit() or '-' in part):
+                        break
+                    file_person_parts.append(part)
+                file_person = '_'.join(file_person_parts)
+                
+                # Proveravamo da li se podudara osoba
+                if file_person == sanitized_person:
+                    matching_files.append(f)
             
             logger.info(f"Found total of {len(matching_files)} images for {person} in domain {domain}")
             return len(matching_files)
