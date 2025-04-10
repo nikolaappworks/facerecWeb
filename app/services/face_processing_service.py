@@ -211,7 +211,9 @@ class FaceProcessingService:
 
             # Process the single valid face
             face_image_array, i = valid_faces[0]
-            unique_id = f"{person}_{date_str}_{int(time.time() * 1000)}"
+            # Uklanjamo navodnike ako postoje i zamenjujemo razmake sa '_'
+            sanitized_person = person.strip('"\'').replace(' ', '_')
+            unique_id = f"{sanitized_person}_{date_str}_{int(time.time() * 1000)}"
 
             logger.info(f"Processing face array shape: {face_image_array.shape}")
             logger.info(f"Processing face array dtype: {face_image_array.dtype}")
