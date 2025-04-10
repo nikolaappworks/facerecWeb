@@ -115,12 +115,23 @@ class RecognitionService:
                             try:
                                 distance = float(row['distance'])
                                 full_path = row['identity']
-                                name = full_path.split('/')[-1].split('_')[0]
-                                # Ako je Windows putanja
-                                if '\\' in full_path:
-                                    name = full_path.split('\\')[-1].split('_')[0]
-                                    
-                                normalized_name = ' '.join(sorted(set(name.split())))
+                                
+                                # Izvlačimo ime osobe (sve do datuma)
+                                if '\\' in full_path:  # Windows putanja
+                                    filename = full_path.split('\\')[-1]
+                                else:  # Unix putanja
+                                    filename = full_path.split('/')[-1]
+                                
+                                # Uzimamo sve do prvog datuma (YYYYMMDD ili YYYY-MM-DD format)
+                                name_parts = filename.split('_')
+                                name = []
+                                for part in name_parts:
+                                    if len(part) >= 8 and (part[0:4].isdigit() or '-' in part):
+                                        break
+                                    name.append(part)
+                                name = ' '.join(name)
+                                
+                                normalized_name = name.strip()
                                 
                                 # Store all matches
                                 all_matches[normalized_name].append(distance)
@@ -142,9 +153,16 @@ class RecognitionService:
             return {"message": "Error processing recognition results"}
 
         # Log summary of all matches found
-        logger.info(f"Total unique names found (before threshold): {len(all_matches)}")
+        logger.info(f"\n{'='*50}")
+        logger.info(f"RECOGNITION RESULTS:")
+        logger.info(f"Total unique persons found: {len(all_matches)}")
         for name, distances in all_matches.items():
-            logger.info(f"All matches for {name}: {len(distances)} occurrences, distances: {distances}")
+            avg_confidence = round((1 - sum(distances)/len(distances)) * 100, 2)
+            logger.info(f"Person: {name}")
+            logger.info(f"- Occurrences: {len(distances)}")
+            logger.info(f"- Average confidence: {avg_confidence}%")
+            logger.info(f"- Best confidence: {round((1 - min(distances)) * 100, 2)}%")
+        logger.info(f"{'='*50}\n")
 
         # Process matches that passed threshold
         if not name_scores:
