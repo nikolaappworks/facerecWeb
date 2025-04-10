@@ -36,36 +36,36 @@ class FaceProcessingService:
             elif image_array.dtype != np.uint8:
                 image_array = image_array.astype(np.uint8)
 
-            print(f"Image array dtype before grayscale: {image_array.dtype}")
-            print(f"Image array shape before grayscale: {image_array.shape}")
+            logger.info(f"Image array dtype before grayscale: {image_array.dtype}")
+            logger.info(f"Image array shape before grayscale: {image_array.shape}")
 
             # Konverzija u grayscale
             gray = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
 
-            print(f"Grayscale image dtype: {gray.dtype}")
-            print(f"Grayscale image shape: {gray.shape}")
+            logger.info(f"Grayscale image dtype: {gray.dtype}")
+            logger.info(f"Grayscale image shape: {gray.shape}")
 
             # Povećanje kontrasta pre Laplaciana if there is only one face
             if number_of_detected_faces == 1:
                 gray = cv2.equalizeHist(gray)
-                print(f"After equalizeHist - Grayscale mean: {gray.mean()}, var: {gray.var()}")
+                logger.info(f"After equalizeHist - Grayscale mean: {gray.mean()}, var: {gray.var()}")
 
             # Izračunavanje Laplacian varijanse
             laplacian = cv2.Laplacian(gray, cv2.CV_64F)
             laplacian_var = laplacian.var()
-            print(f"Laplacian variance after contrast adjustment: {laplacian_var}")
+            logger.info(f"Laplacian variance after contrast adjustment: {laplacian_var}")
             
             # Provera mutnoće sa povećanjem praga
             return laplacian_var < 55  # Prag za mutnoću, može se dalje podešavati
         except Exception as e:
-            print(f"Error in is_blurred: {str(e)}")
-            print(f"Image array info - dtype: {image_array.dtype}, shape: {image_array.shape}")
+            logger.error(f"Error in is_blurred: {str(e)}")
+            logger.info(f"Image array info - dtype: {image_array.dtype}, shape: {image_array.shape}")
             return False
 
     @staticmethod
     def extract_faces_with_timeout(img_path, timeout_duration=70):
         try:
-            print(f"Extracting faces from {img_path}")
+            logger.info(f"Extracting faces from {img_path}")
             return DeepFace.extract_faces(img_path=img_path, enforce_detection=True, detector_backend='retinaface')
         except Exception as e:
             logger.error(f"Face extraction error: {str(e)}")
@@ -185,8 +185,8 @@ class FaceProcessingService:
                 face_image_array = item['face']
                 w, h = face_image_array.shape[1], face_image_array.shape[0]
 
-                print(f"Original face array shape: {face_image_array.shape}")
-                print(f"Original face array dtype: {face_image_array.dtype}")
+                logger.info(f"Original face array shape: {face_image_array.shape}")
+                logger.info(f"Original face array dtype: {face_image_array.dtype}")
 
                 # Check face size
                 if w < 70 or h < 70:
@@ -212,8 +212,8 @@ class FaceProcessingService:
             face_image_array, i = valid_faces[0]
             unique_id = f"{person}_{date_str}_{int(time.time() * 1000)}"
 
-            print(f"Processing face array shape: {face_image_array.shape}")
-            print(f"Processing face array dtype: {face_image_array.dtype}")
+            logger.info(f"Processing face array shape: {face_image_array.shape}")
+            logger.info(f"Processing face array dtype: {face_image_array.dtype}")
             
             # Convert to PIL Image
             face_image_pil = PILImage.fromarray((face_image_array * 255).astype(np.uint8))
@@ -223,7 +223,7 @@ class FaceProcessingService:
             new_width = int(face_image_pil.width * (new_height / face_image_pil.height))
             face_image_pil = face_image_pil.resize((new_width, new_height), PILImage.LANCZOS)
             
-            print(f"PIL Image size after resize: {face_image_pil.size}")
+            logger.info(f"PIL Image size after resize: {face_image_pil.size}")
 
             # Get face coordinates
             facial_area = face_objs[i].get('facial_area', {})
@@ -236,7 +236,7 @@ class FaceProcessingService:
                 "width": round(facial_area.get('w', 0) / img_width, 3),
                 "height": round(facial_area.get('h', 0) / img_height, 3)
             }
-            print(f"Face coordinates: {coordinates}")
+            logger.info(f"Face coordinates: {coordinates}")
             # Save processed face
             sanitized_filename = re.sub(r'[^\w\-_. ]', '_', f"{unique_id}.jpg")
             face_path = os.path.join(domain_path, sanitized_filename)

@@ -182,7 +182,7 @@ class RecognitionService:
                 "distances": distances
             }
             
-            logger.info(f"Threshold-passing matches for {name}:")
+            logging.info(f"Threshold-passing matches for {name}:")
             logger.info(f"- Occurrences: {occurrences}")
             logger.info(f"- Average distance: {avg_distance:.4f}")
             logger.info(f"- Min distance: {min_distance:.4f}")
@@ -194,10 +194,10 @@ class RecognitionService:
         stats = best_match[1]
         
         # Dodajemo ispis najboljeg podudaranja
-        print("\n" + "="*50)
-        print(f"BEST MATCH FOUND: {best_name}")
-        print(f"Confidence: {round((1 - stats['min_distance']) * 100, 2)}%")
-        print("="*50 + "\n")
+        logger.info("\n" + "="*50)
+        logger.info(f"BEST MATCH FOUND: {best_name}")
+        logger.info(f"Confidence: {round((1 - stats['min_distance']) * 100, 2)}%")
+        logger.info("="*50 + "\n")
         
         logger.info(f"Best match found: {best_name} with confidence {round((1 - stats['min_distance']) * 100, 2)}%")
         
