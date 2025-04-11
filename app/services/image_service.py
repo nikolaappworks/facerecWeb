@@ -6,12 +6,14 @@ from io import BytesIO
 import time
 from app.services.face_processing_service import FaceProcessingService
 import logging
+from PIL import Image as PILImage
 
 logger = logging.getLogger(__name__)
 
 class ImageService:
     BASE_UPLOAD_FOLDER = 'uploads'
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    MAX_IMAGE_SIZE = (1024, 1024)  # Maksimalna veličina slike
 
     @staticmethod
     def allowed_file(filename):
@@ -19,16 +21,91 @@ class ImageService:
             filename.rsplit('.', 1)[1].lower() in ImageService.ALLOWED_EXTENSIONS
 
     @staticmethod
+    def resize_image(image_data):
+        """
+        Smanjuje veličinu slike održavajući proporcije originalne slike
+        
+        Args:
+            image_data: Bytes ili BytesIO objekat sa slikom
+            
+        Returns:
+            BytesIO: Procesirana slika kao BytesIO objekat
+        """
+        try:
+            # Konvertuj bytes u BytesIO ako je potrebno
+            if isinstance(image_data, bytes):
+                image_data = BytesIO(image_data)
+            
+            # Otvori sliku
+            with PILImage.open(image_data) as img:
+                # Sačuvaj original format
+                img_format = img.format or 'JPEG'
+                
+                # Proveri orijentaciju iz EXIF podataka
+                try:
+                    exif = img._getexif()
+                    if exif and 274 in exif:  # 274 je tag za orijentaciju
+                        orientation = exif[274]
+                        rotate_values = {
+                            3: 180,
+                            6: 270,
+                            8: 90
+                        }
+                        if orientation in rotate_values:
+                            img = img.rotate(rotate_values[orientation], expand=True)
+                except:
+                    pass  # Ignoriši ako nema EXIF podataka
+
+                # Uzmi trenutne dimenzije
+                width, height = img.size
+                
+                # Izračunaj nove dimenzije
+                if width > height:
+                    # Horizontalna slika
+                    if width > ImageService.MAX_IMAGE_SIZE[0]:
+                        ratio = ImageService.MAX_IMAGE_SIZE[0] / width
+                        new_width = ImageService.MAX_IMAGE_SIZE[0]
+                        new_height = int(height * ratio)
+                    else:
+                        return image_data  # Vrati original ako je već manja
+                else:
+                    # Vertikalna slika
+                    if height > ImageService.MAX_IMAGE_SIZE[1]:
+                        ratio = ImageService.MAX_IMAGE_SIZE[1] / height
+                        new_height = ImageService.MAX_IMAGE_SIZE[1]
+                        new_width = int(width * ratio)
+                    else:
+                        return image_data  # Vrati original ako je već manja
+
+                logger.info(f"Resizing image from {img.size} to {(new_width, new_height)}")
+                
+                # Resize sliku
+                img = img.resize((new_width, new_height), PILImage.LANCZOS)
+                
+                # Sačuvaj procesiranu sliku u BytesIO
+                output = BytesIO()
+                img.save(output, format=img_format, quality=85)
+                output.seek(0)
+                
+                return output
+                
+        except Exception as e:
+            logger.error(f"Error resizing image: {str(e)}")
+            raise
+
+    @staticmethod
     def process_image_async(image_file, person, created_date, domain):
         """Asinhrona obrada slike"""
-        file_content = image_file.read()
+        # Prvo smanjimo veličinu slike
+        resized_image = ImageService.resize_image(image_file)
+        file_content = resized_image.getvalue()
         original_filename = image_file.filename
         
         def background_processing():
             try:
                 logger.info(f"Započinje obrada slike za osobu: {person} sa domaina: {domain}")
                 
-                # Prvo sačuvamo originalnu sliku
+                # Sačuvaj smanjenu sliku
                 file_copy = BytesIO(file_content)
                 file_copy.filename = original_filename
                 saved_path = ImageService.save_image(
@@ -49,7 +126,6 @@ class ImageService:
                     logger.info(f"Uspešno obrađeno lice: {result['filename']}")
                 except Exception as e:
                     logger.error(f"Greška pri obradi lica: {str(e)}")
-                    # Ovde možete dodati logiku za slanje informacija o grešci
 
             except Exception as e:
                 logger.error(f"Greška prilikom obrade slike: {str(e)}")

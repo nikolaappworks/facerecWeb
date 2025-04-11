@@ -5,6 +5,7 @@ from collections import defaultdict
 from deepface import DeepFace
 from PIL import Image
 import numpy as np
+from app.services.image_service import ImageService
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
@@ -30,6 +31,9 @@ class RecognitionService:
             logger.info("Starting face recognition process")
             start_time = time.time()
             
+            # Prvo smanjimo veličinu slike
+            resized_image = ImageService.resize_image(image_bytes)
+            
             # Očisti domain za putanju
             clean_domain = RecognitionService.clean_domain_for_path(domain)
             
@@ -37,11 +41,11 @@ class RecognitionService:
             temp_folder = os.path.join('uploads', clean_domain)
             os.makedirs(temp_folder, exist_ok=True)
             
-            # Sačuvaj sliku privremeno
+            # Sačuvaj smanjenu sliku privremeno
             image_path = os.path.join(temp_folder, f"temp_recognition_{int(time.time() * 1000)}.jpg")
             with open(image_path, "wb") as f:
-                f.write(image_bytes)
-            logger.info(f"Image saved temporarily at: {image_path}")
+                f.write(resized_image.getvalue())
+            logger.info(f"Resized image saved temporarily at: {image_path}")
             
             try:
                 # Definišemo parametre
