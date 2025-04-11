@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(mes
 logger = logging.getLogger(__name__)
 
 class FaceProcessingService:
-    RECOGNIZED_DATABASE_PATH = 'recognized_faces'
+    RECOGNIZED_DATABASE_PATH = 'storage/recognized_faces'
     MAX_TOTAL_IMAGES = 40
     MAX_DAILY_IMAGES = 3
     

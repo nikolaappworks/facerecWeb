@@ -11,7 +11,7 @@ from PIL import Image as PILImage
 logger = logging.getLogger(__name__)
 
 class ImageService:
-    BASE_UPLOAD_FOLDER = 'uploads'
+    BASE_UPLOAD_FOLDER = 'storage/uploads'
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
     MAX_IMAGE_SIZE = (1024, 1024)  # Maksimalna veličina slike
 

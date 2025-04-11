@@ -38,7 +38,7 @@ class RecognitionService:
             clean_domain = RecognitionService.clean_domain_for_path(domain)
             
             # Kreiraj privremeni folder za domain ako ne postoji
-            temp_folder = os.path.join('uploads', clean_domain)
+            temp_folder = os.path.join('storage/uploads', clean_domain)
             os.makedirs(temp_folder, exist_ok=True)
             
             # Sačuvaj smanjenu sliku privremeno
@@ -52,11 +52,12 @@ class RecognitionService:
                 model_name = "VGG-Face"
                 detector_backend = "retinaface"
                 distance_metric = "cosine"
-                db_path = os.path.join('recognized_faces', clean_domain)
+                db_path = os.path.join('storage/recognized_faces_prod', clean_domain)
                 
                 logger.info("Building VGG-Face model...")
                 _ = DeepFace.build_model("VGG-Face")
                 logger.info("Model built")
+                logger.info("DB path: " + db_path)
                 
                 # Izvršavamo prepoznavanje bez batched parametra
                 dfs = DeepFace.find(
