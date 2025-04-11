@@ -83,14 +83,14 @@ class RecognitionService:
         except Exception as e:
             logger.error(f"Error in recognize_face: {str(e)}")
             raise
-        # finally:
-        #     # Čišćenje
-        #     try:
-        #         if os.path.exists(image_path):
-        #             os.remove(image_path)
-        #             logger.info(f"Cleaned up temporary file: {image_path}")
-        #     except Exception as e:
-        #         logger.error(f"Error cleaning up temporary file: {str(e)}")
+        finally:
+            # Čišćenje
+            try:
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                    logger.info(f"Cleaned up temporary file: {image_path}")
+            except Exception as e:
+                logger.error(f"Error cleaning up temporary file: {str(e)}")
 
     @staticmethod
     def analyze_recognition_results(results, threshold=0.4):
