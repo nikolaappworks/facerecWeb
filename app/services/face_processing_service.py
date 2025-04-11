@@ -154,17 +154,17 @@ class FaceProcessingService:
             logger.error(f"Error counting total images: {str(e)}")
             return 0
 
-    # @staticmethod
-    # def cleanup_original_image(image_path):
-    #     """Briše originalnu sliku nakon obrade"""
-    #     try:
-    #         if os.path.exists(image_path):
-    #             os.remove(image_path)
-    #             logger.info(f"Successfully deleted original image: {image_path}")
-    #         else:
-    #             logger.warning(f"Original image not found for deletion: {image_path}")
-    #     except Exception as e:
-    #         logger.error(f"Error deleting original image {image_path}: {str(e)}")
+    @staticmethod
+    def cleanup_original_image(image_path):
+        """Briše originalnu sliku nakon obrade"""
+        try:
+            if os.path.exists(image_path):
+                os.remove(image_path)
+                logger.info(f"Successfully deleted original image: {image_path}")
+            else:
+                logger.warning(f"Original image not found for deletion: {image_path}")
+        except Exception as e:
+            logger.error(f"Error deleting original image {image_path}: {str(e)}")
 
     @staticmethod
     def process_face(image_path, person, created_date, domain):
