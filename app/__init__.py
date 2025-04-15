@@ -8,5 +8,5 @@ def create_app():
 
     # Registrujemo rute
     app.register_blueprint(image_routes)
-
+    
     return app 
