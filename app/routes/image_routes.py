@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from app.controllers.image_controller import ImageController
 from app.controllers.sync_controller import SyncController
-from app.services.domain_service import DomainService
+from app.services.validation_service import ValidationService
 from datetime import datetime
 from app.controllers.recognition_controller import RecognitionController
 import logging
@@ -13,7 +13,15 @@ logger = logging.getLogger(__name__)
 
 @image_routes.route('/upload-with-domain', methods=['POST'])
 def upload_with_domain():
-    # Provera da li postoje svi potrebni parametri
+    auth_token = request.headers.get('Authorization')
+    validation_service = ValidationService()
+
+    if not auth_token:
+        return jsonify({'message': 'Unauthorized'}), 401
+    
+    if not validation_service.validate_auth_token(auth_token):
+        return jsonify({'message': 'Unauthorized'}), 401
+    
     if 'image' not in request.files:
         return jsonify({"error": "Nema slike u zahtevu"}), 400
     
@@ -24,15 +32,14 @@ def upload_with_domain():
         return jsonify({"error": "Nedostaje parametar 'created_date'"}), 400
     
     try:
-        # Validacija datuma
         created_date = datetime.strptime(request.form['created_date'], '%Y-%m-%d')
     except ValueError:
         return jsonify({"error": "Neispravan format datuma. Koristite YYYY-MM-DD"}), 400
     
     image_file = request.files['image']
     person = request.form['person']
-    domain = DomainService.extract_domain(request)
-    
+    domain = validation_service.get_domain()
+
     result = ImageController.handle_image_upload(
         image_file=image_file,
         person=person,
@@ -44,6 +51,15 @@ def upload_with_domain():
 @image_routes.route('/recognize', methods=['POST'])
 def recognize_face():
     try:
+        auth_token = request.headers.get('Authorization')
+        validation_service = ValidationService()
+        
+        if not auth_token:
+            return jsonify({'message': 'Unauthorized'}), 401
+        
+        if not validation_service.validate_auth_token(auth_token):
+            return jsonify({'message': 'Unauthorized'}), 401
+
         if 'image' not in request.files:
             return jsonify({'error': 'No image provided'}), 400
             
@@ -51,8 +67,8 @@ def recognize_face():
         if not image_file.filename:
             return jsonify({'error': 'No selected file'}), 400
             
-        # Izvuci domain iz request-a koristeći DomainService
-        domain = DomainService.extract_domain(request)
+        
+        domain = validation_service.get_domain()
         
         # Čitaj sliku kao bytes
         image_bytes = image_file.read()
