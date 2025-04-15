@@ -1,7 +1,12 @@
 from flask import Blueprint, jsonify, request
 from app.services.image_service import ImageService
+from app.services.face_processing_service import FaceProcessingService
+from app.services.text_service import TextService
+import logging
 
 image_bp = Blueprint('image', __name__)
+
+logger = logging.getLogger(__name__)
 
 @image_bp.route('/test', methods=['GET'])
 def test_route():
@@ -24,24 +29,29 @@ def process_image():
 class ImageController:
     @staticmethod
     def handle_image_upload(image_file, person, created_date, domain):
-        if not image_file or not ImageService.allowed_file(image_file.filename):
-            return {
-                "error": "Nevažeći format fajla",
-                "domain": domain
-            }
-        
-        # Pokrenemo asinhronu obradu
-        ImageService.process_image_async(
-            image_file=image_file,
-            person=person,
-            created_date=created_date,
-            domain=domain
-        )
-        
-        return {
-            "message": "Slika je primljena i biće obrađena",
-            "status": "processing",
-            "person": person,
-            "created_date": created_date.strftime('%Y-%m-%d'),
-            "domain": domain
-        } 
+        """
+        Obrađuje upload slike, ekstrahuje lice i čuva ga
+        """
+        try:
+            # Normalizuj ime osobe
+            normalized_person = TextService.normalize_text(person)
+            logger.info(f"Normalizovano ime osobe: '{person}' -> '{normalized_person}'")
+            
+            # Ako je normalizacija uklonila sve karaktere, koristi originalno ime
+            if not normalized_person:
+                logger.warning(f"Normalizacija je uklonila sve karaktere iz imena '{person}', koristim originalno ime")
+                normalized_person = person
+            
+            # Pokrenemo asinhronu obradu
+            ImageService.process_image_async(
+                image_file=image_file,
+                person=normalized_person,
+                created_date=created_date,
+                domain=domain
+            )
+            
+            return {"status": "success", "message": "Slika je poslata na obradu"}
+            
+        except Exception as e:
+            logger.error(f"Error in ImageController.handle_image_upload: {str(e)}")
+            return {"error": str(e)} 
