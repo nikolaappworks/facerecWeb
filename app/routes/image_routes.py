@@ -122,3 +122,27 @@ def sync_faces():
     except Exception as e:
         logger.error(f"Greška u sync_faces endpoint-u: {str(e)}")
         return jsonify({'error': str(e)}), 500         
+
+@image_routes.route('/sync-kylo', methods=['POST'])
+def sync_kylo():
+    """
+    Endpoint za sinhronizaciju slika sa Kylo sistema.
+    Preuzima slike sa Kylo API-ja, obrađuje ih i čuva prepoznata lica.
+    """
+    try:
+        auth_token = request.headers.get('Authorization')
+       
+        validation_service = ValidationService()
+        
+        if not auth_token:
+            return jsonify({'message': 'Unauthorized'}), 401
+
+        if not validation_service.validate_auth_token(auth_token):
+            return jsonify({'message': 'Unauthorized'}), 401
+
+        domain = validation_service.get_domain()
+        result = SyncController.sync_images_from_kylo(domain)
+        return jsonify(True), 202  # 202 Accepted
+    except Exception as e:
+        logger.error(f"Greška u sync_kylo endpoint-u: {str(e)}")
+        return jsonify({'error': str(e)}), 500         

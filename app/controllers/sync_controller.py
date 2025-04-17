@@ -4,6 +4,7 @@ import logging
 from app.services.recognition_service import RecognitionService
 from app.controllers.recognition_controller import RecognitionController
 from app.services.background_service import BackgroundService
+from app.services.kylo_service import KyloService
 
 logger = logging.getLogger(__name__)
 
@@ -275,4 +276,31 @@ class SyncController:
             "message": "Sinhronizacija pokrenuta u pozadini",
             "source_dir": source_dir,
             "target_dir": target_dir
-        } 
+        }
+
+    @staticmethod
+    def sync_images_from_kylo(domain):
+        """
+        Kontroler za sinhronizaciju slika sa Kylo sistema.
+        Koordinira proces preuzimanja, obrade i čuvanja slika.
+        """
+        try:
+            # Preuzimanje slika sa Kylo API-ja
+            images_data = KyloService.fetch_images_from_kylo()
+            
+            if not images_data:
+                logger.info("Nema podataka sa Kylo API-ja.")
+                return {"status": "success", "message": "Nema novih slika za obradu", "processed": 0}
+            
+            # Pokretanje asinhrone obrade slika
+            result = KyloService.process_images_from_kylo(images_data, domain)
+            
+            return {
+                "status": "success", 
+                "message": f"Pokrenuta obrada {len(images_data)} slika", 
+                "processed": len(images_data)
+            }
+            
+        except Exception as e:
+            logger.error(f"Greška u SyncController.sync_images_from_kylo: {str(e)}")
+            return {"status": "error", "message": str(e)} 

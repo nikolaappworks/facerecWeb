@@ -97,8 +97,8 @@ class ImageService:
     def process_image_async(image_file, person, created_date, domain):
         """Asinhrona obrada slike"""
         # Prvo smanjimo veličinu slike
-        resized_image = ImageService.resize_image(image_file)
-        file_content = resized_image.getvalue()
+        # resized_image = ImageService.resize_image(image_file)
+        file_content = image_file.getvalue()
         original_filename = image_file.filename
         
         def background_processing():

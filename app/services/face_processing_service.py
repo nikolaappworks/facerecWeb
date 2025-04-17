@@ -55,6 +55,7 @@ class FaceProcessingService:
             laplacian = cv2.Laplacian(gray, cv2.CV_64F)
             laplacian_var = laplacian.var()
             logger.info(f"Laplacian variance after contrast adjustment: {laplacian_var}")
+            print(f"Laplacian variance after contrast adjustment: {laplacian_var}")
             
             # Provera mutnoće sa povećanjem praga
             return laplacian_var < 55  # Prag za mutnoću, može se dalje podešavati
@@ -202,13 +203,16 @@ class FaceProcessingService:
             # Provera da li fajl postoji
             if not os.path.exists(image_path):
                 logger.error(f"Image file not found: {image_path}")
-                raise Exception("Image file not found")
 
             # Extract faces
             face_objs = FaceProcessingService.extract_faces_with_timeout(image_path)
 
-            if face_objs is None:
-                raise Exception("Face extraction failed")
+
+            if face_objs is not None:
+                logger.info(f"Detected {len(face_objs)} faces in the image.")
+            else:
+                logger.error("Face extraction returned None")
+                
 
             valid_faces = []
             invalid_faces = []
@@ -223,6 +227,8 @@ class FaceProcessingService:
 
                 # Check face size
                 if w < 70 or h < 70:
+                    print(f"Face too smallllllllllllllllll w : {w} h : {h}")
+                    invalid_faces.append((face_image_array, i))
                     continue
 
                 # Check for blurriness
@@ -234,12 +240,21 @@ class FaceProcessingService:
 
             # Process results
             if len(valid_faces) > 1:
-                raise Exception("Multiple faces detected")
+                logger.error("Multiple faces detected")
+                print("Multiple faces detected")
             elif len(valid_faces) == 0:
-                if len(invalid_faces) > 0:
-                    raise Exception("Face(s) blurry")
+                if len(invalid_faces) == 1:
+                    logger.info(f"Skipping image: blurry.")
+                    print(f"Skipping image: blurry.")
+                elif len(invalid_faces) > 1:
+                    logger.info(f"Skipping image: multiple invalid faces.")
+                    print(f"Skipping image: multiple invalid faces.")
                 else:
-                    raise Exception("No face found")
+                    logger.info(f"Skipping image: No face found.")
+                    print(f"Skipping image: No face found.")
+                # Dodajemo rano vraćanje iz funkcije ako nema validnih lica
+                FaceProcessingService.cleanup_original_image(image_path)
+                raise Exception("No valid faces found in the image.")
 
             # Process the single valid face
             face_image_array, i = valid_faces[0]
