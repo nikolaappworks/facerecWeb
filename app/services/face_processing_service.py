@@ -242,6 +242,7 @@ class FaceProcessingService:
             if len(valid_faces) > 1:
                 logger.error("Multiple faces detected")
                 print("Multiple faces detected")
+                raise Exception("No valid faces found in the image.")
             elif len(valid_faces) == 0:
                 if len(invalid_faces) == 1:
                     logger.info(f"Skipping image: blurry.")
