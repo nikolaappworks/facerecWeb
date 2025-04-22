@@ -278,3 +278,36 @@ class KyloService:
             logger.info(f"Successfully sent skipped info to KYLO API: {response.json()}")
         except Exception as e:
             logger.error(f"Error sending skipped info to KYLO API: {str(e)}")
+
+    @staticmethod
+    def send_info_to_kylo(media_id: int, s3_url: str, person: str, coordinates: dict = None):
+        api_url = "https://media24.kylo.space/api/v1/insertImageFaceRecognition"
+        payload = {
+            "media_id": media_id,
+            "path_to_image": s3_url,
+            "person": person,
+            "coordinates": coordinates or {}  # Include coordinates if provided, empty dict if None
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer 7|SRvNn5DOZN42K51ije6vl4WwnaTRgqk0Ym92guoM"
+        }
+
+        # Add detailed logging
+        logger.info("Sending face recognition data to Kylo:")
+        logger.info(f"- Media ID: {media_id}")
+        logger.info(f"- S3 URL: {s3_url}")
+        logger.info(f"- Person: {person}")
+        logger.info(f"- Coordinates: {coordinates}")
+        logger.info(f"Full payload: {payload}")
+
+        try:
+            response = requests.post(api_url, json=payload, headers=headers)
+            logger.info(f"Response Status: {response.status_code}")
+            logger.info(f"Response Content: {response.text}")
+            response.raise_for_status()
+            logger.info("Successfully sent data to KYLO API")
+
+        except Exception as e:
+            logger.error(f"Error sending data to KYLO API: {str(e)}")
+            raise Exception("Error sending data to KYLO API")
