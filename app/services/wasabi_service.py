@@ -11,20 +11,29 @@ logger = logging.getLogger(__name__)
 logger.info(f"Loading .env from: {dotenv_path}")
 load_dotenv(dotenv_path)
 
-# Dodajte ove linije za debug
-logger.info(f"S3_ACCESS_KEY_ID: {'*' * (len(os.getenv('S3_ACCESS_KEY_ID') or '') if os.getenv('S3_ACCESS_KEY_ID') else 'Not set')}")
-logger.info(f"S3_SECRET_ACCESS_KEY: {'*' * (len(os.getenv('S3_SECRET_ACCESS_KEY') or '') if os.getenv('S3_SECRET_ACCESS_KEY') else 'Not set')}")
-logger.info(f"S3_ENDPOINT: {os.getenv('S3_ENDPOINT') or 'Not set'}")
-logger.info(f"S3_DEFAULT_REGION: {os.getenv('S3_DEFAULT_REGION') or 'Not set'}")
+# Pojednostavljeni izrazi za logovanje
+access_key = os.getenv("S3_ACCESS_KEY_ID")
+secret_key = os.getenv("S3_SECRET_ACCESS_KEY")
+endpoint = os.getenv("S3_ENDPOINT")
+region = os.getenv("S3_DEFAULT_REGION")
+
+logger.info(f"S3_ACCESS_KEY_ID: {'*' * len(access_key) if access_key else 'Not set'}")
+logger.info(f"S3_SECRET_ACCESS_KEY: {'*' * len(secret_key) if secret_key else 'Not set'}")
+logger.info(f"S3_ENDPOINT: {endpoint or 'Not set'}")
+logger.info(f"S3_DEFAULT_REGION: {region or 'Not set'}")
 
 class WasabiService:
     @staticmethod
     def get_s3_client():
-        # Direktno postavljanje kredencijala (samo za testiranje)
-        access_key = os.getenv("S3_ACCESS_KEY_ID") or "vaš_access_key"
-        secret_key = os.getenv("S3_SECRET_ACCESS_KEY") or "vaš_secret_key"
+        # Direktno postavljanje kredencijala
+        access_key = os.getenv("S3_ACCESS_KEY_ID")
+        secret_key = os.getenv("S3_SECRET_ACCESS_KEY")
         endpoint = os.getenv("S3_ENDPOINT") or "https://s3.wasabisys.com"
         region = os.getenv("S3_DEFAULT_REGION") or "us-east-1"
+        
+        if not access_key or not secret_key:
+            logger.error("S3 credentials not available. Please check your .env file.")
+            raise Exception("S3 credentials not available")
         
         logger.info(f"Using S3 credentials - Access Key: {'*' * len(access_key)}, Endpoint: {endpoint}, Region: {region}")
         
