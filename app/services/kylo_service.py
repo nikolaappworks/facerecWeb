@@ -202,6 +202,7 @@ class KyloService:
             dict: Rezultat pokretanja asinhrone obrade
         """
         def process_batch(batch):
+            from app.services.image_service import ImageService
             for image_info in batch:
                 try:
                     KyloService.process_single_image_from_kylo(image_info, domain)
