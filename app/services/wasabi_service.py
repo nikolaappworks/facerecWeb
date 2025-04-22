@@ -25,17 +25,13 @@ logger.info(f"S3_DEFAULT_REGION: {region or 'Not set'}")
 class WasabiService:
     @staticmethod
     def get_s3_client():
-        # Direktno postavljanje kredencijala
-        access_key = os.getenv("S3_ACCESS_KEY_ID")
-        secret_key = os.getenv("S3_SECRET_ACCESS_KEY")
-        endpoint = os.getenv("S3_ENDPOINT") or "https://s3.wasabisys.com"
-        region = os.getenv("S3_DEFAULT_REGION") or "us-east-1"
+        # Hardkodirani kredencijali (samo za testiranje)
+        access_key = "8LHO8NVLF7MKVUM85N9U"  # Zamenite sa stvarnim access key-em
+        secret_key = "340KXYGepKfPJrnmsQ855yTHFZ5zAMI4zsgwNiHc"  # Zamenite sa stvarnim secret key-em
+        endpoint = "https://s3.eu-central-2.wasabisys.com"
+        region = "eu-central-2"
         
-        if not access_key or not secret_key:
-            logger.error("S3 credentials not available. Please check your .env file.")
-            raise Exception("S3 credentials not available")
-        
-        logger.info(f"Using S3 credentials - Access Key: {'*' * len(access_key)}, Endpoint: {endpoint}, Region: {region}")
+        logger.info(f"Using hardcoded S3 credentials")
         
         return boto3.client(
             's3',
