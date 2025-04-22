@@ -6,7 +6,7 @@ import boto3
 load_dotenv()
 
 class WasabiService:
-    def get_s3_client(self, auth_token):
+    def get_s3_client():
         return boto3.client(
             's3',
             aws_access_key_id=os.getenv("S3_ACCESS_KEY_ID"),
