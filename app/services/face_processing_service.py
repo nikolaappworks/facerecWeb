@@ -308,7 +308,7 @@ class FaceProcessingService:
 
 
             if os.path.isfile(face_path):
-            
+                logger.info(f"Face saved at: {face_path}")
             else:
                 logger.error(f"Failed to save face at: {face_path}")
                 KyloService.send_skipped_info_to_kylo(image_id, person, "Failed to save face.")
