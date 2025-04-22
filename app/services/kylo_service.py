@@ -3,7 +3,6 @@ import json
 import logging
 import requests
 import threading
-from app.services.image_service import ImageService
 from app.services.background_service import BackgroundService
 from dotenv import load_dotenv
 from app.services.text_service import TextService
@@ -117,6 +116,9 @@ class KyloService:
             dict: Rezultat obrade
         """
         try:
+            # Premestite import ovde
+            from app.services.image_service import ImageService
+            
             image_id = image_info["id"]
             person = image_info.get("person", "")
             created_date = image_info.get("created_date", None)
