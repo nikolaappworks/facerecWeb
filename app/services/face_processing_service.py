@@ -312,8 +312,7 @@ class FaceProcessingService:
                 logger.info(f"Face saved at: {face_path}")
                 download_url = sanitized_filename
                 s3_key = f"recognized_faces/{sanitized_filename}"
-                wasabi_service = WasabiService()
-                wasabi_service.upload_to_s3(face_path, "facerec", s3_key)
+                WasabiService.upload_to_s3(face_path, "facerec", s3_key)
                 KyloService.send_info_to_kylo(image_id, download_url, person, coordinates)
             else:
                 logger.error(f"Failed to save face at: {face_path}")

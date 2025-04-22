@@ -20,7 +20,8 @@ class WasabiService:
             region_name=os.getenv("S3_DEFAULT_REGION")
         )
         
-    def upload_to_s3(self, local_path, s3_bucket, s3_key):
+    @staticmethod
+    def upload_to_s3(local_path, s3_bucket, s3_key):
         logger.info(f"Uploading {local_path} to S3 bucket: {s3_bucket}, key: {s3_key}")
         s3 = WasabiService.get_s3_client()
         try:
