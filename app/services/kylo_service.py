@@ -177,7 +177,8 @@ class KyloService:
                 image_file=image_file,
                 person=normalized_person,  # Koristimo normalizovano ime
                 created_date=created_date,
-                domain=domain
+                domain=domain,
+                image_id=image_id
             )
             
             return {"status": "success", "message": f"Slika {image_id} poslata na obradu", "image_id": image_id}
@@ -253,3 +254,24 @@ class KyloService:
         except Exception as e:
             logger.error(f"Greška pri pokretanju asinhrone obrade: {str(e)}")
             return {"status": "error", "message": str(e)} 
+
+    @staticmethod
+    def send_skipped_info_to_kylo(image_id: int, person: str, message: str):
+        api_url = "https://media24.kylo.space/api/v1/insertImageFaceRecognition"
+        payload = {
+            "media_id": image_id,
+            "person": person,
+            "message": message
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer 7|SRvNn5DOZN42K51ije6vl4WwnaTRgqk0Ym92guoM"
+        }
+
+        try:
+            logger.info(f"Sending skipped info to KYLO API. Payload: {payload}")
+            response = requests.post(api_url, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.info(f"Successfully sent skipped info to KYLO API: {response.json()}")
+        except Exception as e:
+            logger.error(f"Error sending skipped info to KYLO API: {str(e)}")

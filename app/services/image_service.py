@@ -94,7 +94,7 @@ class ImageService:
             raise
 
     @staticmethod
-    def process_image_async(image_file, person, created_date, domain):
+    def process_image_async(image_file, person, created_date, domain, image_id):
         """Asinhrona obrada slike"""
         # Prvo smanjimo veličinu slike
         # resized_image = ImageService.resize_image(image_file)
@@ -121,7 +121,8 @@ class ImageService:
                         saved_path,
                         person,
                         created_date.strftime('%Y-%m-%d'),
-                        domain
+                        domain,
+                        image_id
                     )
                     logger.info(f"Uspešno obrađeno lice: {result['filename']}")
                 except Exception as e:

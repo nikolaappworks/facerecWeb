@@ -6,6 +6,7 @@ import numpy as np
 from datetime import datetime
 from PIL import Image as PILImage
 from deepface import DeepFace
+from app.services.kylo_service import KyloService
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
@@ -168,7 +169,7 @@ class FaceProcessingService:
             logger.error(f"Error deleting original image {image_path}: {str(e)}")
 
     @staticmethod
-    def process_face(image_path, person, created_date, domain):
+    def process_face(image_path, person, created_date, domain, image_id):
         """Process face from image and return results"""
         logger.info(f"Starting face processing for image: {image_path}")
         
@@ -182,6 +183,7 @@ class FaceProcessingService:
             logger.info(f"Current total images for {person} in domain {domain}: {total_images}")
             if total_images >= FaceProcessingService.MAX_TOTAL_IMAGES:
                 logger.info(f"Skipping extraction: {person} already has {FaceProcessingService.MAX_TOTAL_IMAGES} saved images.")
+                KyloService.send_skipped_info_to_kylo(image_id, person, "Person image limit reached.")
                 FaceProcessingService.cleanup_original_image(image_path)
                 raise Exception(f"Person image limit reached ({FaceProcessingService.MAX_TOTAL_IMAGES} images).")
 
@@ -190,6 +192,7 @@ class FaceProcessingService:
             logger.info(f"Current daily images for {person} on {date_str} in domain {domain}: {daily_images}")
             if daily_images >= FaceProcessingService.MAX_DAILY_IMAGES:
                 logger.info(f"Skipping extraction: Already {FaceProcessingService.MAX_DAILY_IMAGES} images for {person} on {date_str}.")
+                KyloService.send_skipped_info_to_kylo(image_id, person, "Daily image limit reached.")
                 FaceProcessingService.cleanup_original_image(image_path)
                 raise Exception(f"Daily image limit reached ({FaceProcessingService.MAX_DAILY_IMAGES} images).")
 
@@ -205,14 +208,20 @@ class FaceProcessingService:
                 logger.error(f"Image file not found: {image_path}")
 
             # Extract faces
-            face_objs = FaceProcessingService.extract_faces_with_timeout(image_path)
+            try:
+                face_objs = FaceProcessingService.extract_faces_with_timeout(image_path)
+                if face_objs is not None:
+                    logger.info(f"Detected {len(face_objs)} faces in the image.")
+                else:
+                    logger.error("Face extraction returned None")
+            except Exception as e:
+                logger.error(f"Face extraction failed with error: {str(e)}")
+                KyloService.send_skipped_info_to_kylo(image_id, person, "Face extraction failed.")
+                raise HTTPException(status_code=500, detail=f"Face extraction failed: {str(e)}")
+            
 
 
-            if face_objs is not None:
-                logger.info(f"Detected {len(face_objs)} faces in the image.")
-            else:
-                logger.error("Face extraction returned None")
-                
+            
 
             valid_faces = []
             invalid_faces = []
@@ -241,17 +250,21 @@ class FaceProcessingService:
             # Process results
             if len(valid_faces) > 1:
                 logger.error("Multiple faces detected")
+                KyloService.send_skipped_info_to_kylo(image_id, person, "Multiple faces detected.")
                 print("Multiple faces detected")
                 raise Exception("No valid faces found in the image.")
             elif len(valid_faces) == 0:
                 if len(invalid_faces) == 1:
                     logger.info(f"Skipping image: blurry.")
+                    KyloService.send_skipped_info_to_kylo(image_id, person, "Face blurry.")
                     print(f"Skipping image: blurry.")
                 elif len(invalid_faces) > 1:
                     logger.info(f"Skipping image: multiple invalid faces.")
+                    KyloService.send_skipped_info_to_kylo(image_id, person, "Multiple invalid faces.")
                     print(f"Skipping image: multiple invalid faces.")
                 else:
                     logger.info(f"Skipping image: No face found.")
+                    KyloService.send_skipped_info_to_kylo(image_id, person, "No face found.")
                     print(f"Skipping image: No face found.")
                 # Dodajemo rano vraćanje iz funkcije ako nema validnih lica
                 FaceProcessingService.cleanup_original_image(image_path)
@@ -293,6 +306,13 @@ class FaceProcessingService:
             face_path = os.path.join(domain_path, sanitized_filename)
             face_image_pil.save(face_path, format="JPEG", quality=85)
 
+
+            if os.path.isfile(face_path):
+            
+            else:
+                logger.error(f"Failed to save face at: {face_path}")
+                KyloService.send_skipped_info_to_kylo(image_id, person, "Failed to save face.")
+                raise Exception("Failed to save face.")
             # Na kraju uspešne obrade
             result = {
                 'face_path': face_path,
