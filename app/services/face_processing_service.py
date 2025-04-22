@@ -313,7 +313,12 @@ class FaceProcessingService:
                 download_url = sanitized_filename
                 s3_key = f"recognized_faces/{sanitized_filename}"
                 WasabiService.upload_to_s3(face_path, "facerec", s3_key)
-                KyloService.send_info_to_kylo(image_id, download_url, person, coordinates)
+                
+                # Konverzija imena iz formata sa donjom crtom u format sa razmakom
+                formatted_person = person.replace("_", " ")
+                logger.info(f"Formatted person name: {formatted_person} (original: {person})")
+                
+                KyloService.send_info_to_kylo(image_id, download_url, formatted_person, coordinates)
             else:
                 logger.error(f"Failed to save face at: {face_path}")
                 KyloService.send_skipped_info_to_kylo(image_id, person, "Failed to save face.")
