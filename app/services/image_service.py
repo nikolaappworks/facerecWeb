@@ -94,8 +94,17 @@ class ImageService:
             raise
 
     @staticmethod
-    def process_image_async(image_file, person, created_date, domain, image_id):
-        """Asinhrona obrada slike"""
+    def process_image_async(image_file, person, created_date, domain, image_id=None):
+        """
+        Asinhrona obrada slike
+        
+        Args:
+            image_file: Fajl slike
+            person: Ime osobe
+            created_date: Datum kreiranja
+            domain: Domen
+            image_id: ID slike (opciono, koristi se samo za Kylo API)
+        """
         # Prvo smanjimo veličinu slike
         # resized_image = ImageService.resize_image(image_file)
         file_content = image_file.getvalue()
@@ -117,12 +126,13 @@ class ImageService:
                 
                 # Zatim procesiramo lice
                 try:
+                    # Ako image_id nije prosleđen, prosledi None
                     result = FaceProcessingService.process_face(
                         saved_path,
                         person,
                         created_date.strftime('%Y-%m-%d'),
                         domain,
-                        image_id
+                        image_id  # Može biti None
                     )
                     logger.info(f"Uspešno obrađeno lice: {result['filename']}")
                 except Exception as e:
