@@ -307,22 +307,23 @@ class SyncController:
             return {"status": "error", "message": str(e)}
 
     @staticmethod
-    def transfer_images_background(source_dir='storage/transfer_images', target_dir='storage/recognized_faces_prod', test_image_path=None):
+    def transfer_images_background(source_dir='storage/transfer_images', target_domain='media24', batch_size=30):
         """
-        Pokreće transfer slika iz source_dir u storage/recognized_faces_prod/target_dir u pozadini
+        Pokreće transfer slika iz source_dir u storage/recognized_faces_prod/target_domain u pozadini
         """
         # Pokreni transfer u pozadini
         BackgroundService.run_in_background(
             SyncController.transfer_images,
             source_dir,
-            target_dir,
-            test_image_path
+            target_domain,
+            batch_size
         )
         
         return {
             "message": "Transfer slika pokrenut u pozadini",
             "source_dir": source_dir,
-            "target_dir": target_dir
+            "target_domain": target_domain,
+            "batch_size": batch_size
         }
 
     @staticmethod
