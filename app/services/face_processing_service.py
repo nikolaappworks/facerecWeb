@@ -377,8 +377,6 @@ class FaceProcessingService:
             if image_id is not None:
                 # Dobavi originalno ime osobe i za skipped info
                 formatted_person = TextService.get_original_text(person)
-                KyloService.send_skipped_info_to_kylo(image_id, formatted_person, str(e))
-            
             raise e
 
     @staticmethod
