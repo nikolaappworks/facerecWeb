@@ -124,9 +124,10 @@ class KyloService:
             created_date = image_info.get("created_date", None)
             
             # Normalizacija imena osobe koristeći postojeću metodu normalize_text
-            normalized_person = TextService.normalize_text(person) if person else ""
+            person_original = person  # Sačuvaj originalno ime
+            normalized_person = TextService.normalize_text(person, save_mapping=True) if person else ""
             
-            logger.info(f"Obrada slike ID: {image_id}, Osoba: {person}, Normalizovano: {normalized_person}")
+            logger.info(f"Obrada slike ID: {image_id}, Osoba (original): {person_original}, Normalizovano: {normalized_person}")
             
             # Preuzimanje sadržaja slike
             image_content = KyloService.download_image_from_kylo(image_id)
@@ -261,9 +262,13 @@ class KyloService:
     @staticmethod
     def send_skipped_info_to_kylo(image_id: int, person: str, message: str):
         api_url = "https://media24.kylo.space/api/v1/insertImageFaceRecognition"
+        
+        # Dobavi originalno ime osobe
+        original_person = TextService.get_original_text(person)
+        
         payload = {
             "media_id": image_id,
-            "person": person,
+            "person": original_person,  # Koristi originalno ime
             "message": message
         }
         headers = {

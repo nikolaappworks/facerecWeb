@@ -34,6 +34,7 @@ class TextService:
         
         # Sačuvaj mapiranje ako je potrebno
         if save_mapping and text != original_text:
+            logger.info(f"Saving name mapping: {original_text} -> {text}")
             NameMappingService.save_name_mapping(original_text, text)
         
         return text

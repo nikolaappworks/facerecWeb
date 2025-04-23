@@ -313,16 +313,30 @@ class FaceProcessingService:
                 logger.info(f"Face saved at: {face_path}")
                 download_url = sanitized_filename
                 s3_key = f"recognized_faces/{sanitized_filename}"
-                WasabiService.upload_to_s3(face_path, "facerec", s3_key)
                 
-                # Konverzija imena iz formata sa donjom crtom u format sa razmakom
+                try:
+                    WasabiService.upload_to_s3(face_path, "facerec", s3_key)
+                except Exception as e:
+                    logger.warning(f"S3 upload failed, continuing without it: {str(e)}")
+                
+                # Dobavi originalno ime osobe
                 formatted_person = TextService.get_original_text(person)
                 logger.info(f"Using original person name: {formatted_person} (normalized: {person})")
                 
-                KyloService.send_info_to_kylo(image_id, download_url, formatted_person, coordinates)
+                # Proveri da li je originalno ime zaista dobijeno
+                if formatted_person == person and '_' in person:
+                    # Ako nije pronađeno mapiranje, a ime sadrži donju crtu, pokušaj da je zameniš razmakom
+                    alternative_person = person.replace('_', ' ')
+                    logger.info(f"No mapping found, using alternative formatting: {alternative_person}")
+                    KyloService.send_info_to_kylo(image_id, download_url, alternative_person, coordinates)
+                else:
+                    KyloService.send_info_to_kylo(image_id, download_url, formatted_person, coordinates)
             else:
                 logger.error(f"Failed to save face at: {face_path}")
-                KyloService.send_skipped_info_to_kylo(image_id, person, "Failed to save face.")
+                
+                # Dobavi originalno ime osobe i za skipped info
+                formatted_person = TextService.get_original_text(person)
+                KyloService.send_skipped_info_to_kylo(image_id, formatted_person, "Failed to save face.")
                 raise Exception("Failed to save face.")
 
             result = {
