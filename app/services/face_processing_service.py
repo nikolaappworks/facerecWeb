@@ -9,6 +9,7 @@ from deepface import DeepFace
 from app.services.kylo_service import KyloService
 import logging
 from app.services.wasabi_service import WasabiService
+from app.services.text_service import TextService
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
@@ -315,8 +316,8 @@ class FaceProcessingService:
                 WasabiService.upload_to_s3(face_path, "facerec", s3_key)
                 
                 # Konverzija imena iz formata sa donjom crtom u format sa razmakom
-                formatted_person = person.replace("_", " ")
-                logger.info(f"Formatted person name: {formatted_person} (original: {person})")
+                formatted_person = TextService.get_original_text(person)
+                logger.info(f"Using original person name: {formatted_person} (normalized: {person})")
                 
                 KyloService.send_info_to_kylo(image_id, download_url, formatted_person, coordinates)
             else:

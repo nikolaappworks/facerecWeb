@@ -282,10 +282,14 @@ class KyloService:
     @staticmethod
     def send_info_to_kylo(media_id: int, s3_url: str, person: str, coordinates: dict = None):
         api_url = "https://media24.kylo.space/api/v1/insertImageFaceRecognition"
+        
+        # Dobavi originalno ime osobe
+        original_person = TextService.get_original_text(person)
+        
         payload = {
             "media_id": media_id,
             "path_to_image": s3_url,
-            "person": person,
+            "person": original_person,  # Koristi originalno ime
             "coordinates": coordinates or {}  # Include coordinates if provided, empty dict if None
         }
         headers = {
@@ -297,7 +301,8 @@ class KyloService:
         logger.info("Sending face recognition data to Kylo:")
         logger.info(f"- Media ID: {media_id}")
         logger.info(f"- S3 URL: {s3_url}")
-        logger.info(f"- Person: {person}")
+        logger.info(f"- Person (normalized): {person}")
+        logger.info(f"- Person (original): {original_person}")
         logger.info(f"- Coordinates: {coordinates}")
         logger.info(f"Full payload: {payload}")
 

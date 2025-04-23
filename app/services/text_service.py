@@ -1,44 +1,52 @@
 import unicodedata
 import re
+import logging
+from app.services.name_mapping_service import NameMappingService
+
+logger = logging.getLogger(__name__)
 
 class TextService:
     @staticmethod
-    def normalize_text(text):
+    def normalize_text(text, save_mapping=True):
         """
-        Normalizuje tekst uklanjanjem dijakritičkih znakova i zamenom specijalnih karaktera
+        Normalizuje tekst uklanjanjem specijalnih karaktera i zamenom razmaka sa donjom crtom.
+        Takođe čuva mapiranje između originalnog i normalizovanog teksta.
+        
+        Args:
+            text (str): Tekst za normalizaciju
+            save_mapping (bool): Da li da sačuva mapiranje između originalnog i normalizovanog teksta
+            
+        Returns:
+            str: Normalizovani tekst
         """
         if not text:
-            return text
+            return ""
+        
+        # Sačuvaj originalni tekst
+        original_text = text
+        
+        # Normalizuj unicode karaktere
+        text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
+        
+        # Zameni razmake sa donjom crtom i ukloni specijalne karaktere
+        text = re.sub(r'[^\w\s]', '', text)
+        text = text.replace(' ', '_')
+        
+        # Sačuvaj mapiranje ako je potrebno
+        if save_mapping and text != original_text:
+            NameMappingService.save_name_mapping(original_text, text)
+        
+        return text
+    
+    @staticmethod
+    def get_original_text(normalized_text):
+        """
+        Vraća originalni tekst na osnovu normalizovanog teksta.
+        
+        Args:
+            normalized_text (str): Normalizovani tekst
             
-        # Prvo normalizujemo unicode karaktere
-        normalized = unicodedata.normalize('NFKD', text)
-        
-        # Uklanjamo dijakritičke znakove
-        normalized = ''.join([c for c in normalized if not unicodedata.combining(c)])
-        
-        # Zamena specifičnih karaktera
-        replacements = {
-            'ć': 'c', 'č': 'c', 'đ': 'dj', 'š': 's', 'ž': 'z',
-            'Ć': 'C', 'Č': 'C', 'Đ': 'Dj', 'Š': 'S', 'Ž': 'Z',
-            'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
-            'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U',
-            'ä': 'a', 'ë': 'e', 'ï': 'i', 'ö': 'o', 'ü': 'u',
-            'Ä': 'A', 'Ë': 'E', 'Ï': 'I', 'Ö': 'O', 'Ü': 'U'
-        }
-        
-        for char, replacement in replacements.items():
-            normalized = normalized.replace(char, replacement)
-        
-        # Uklanjamo sve karaktere koji nisu alfanumerički ili razmak
-        normalized = re.sub(r'[^a-zA-Z0-9\s_-]', '', normalized)
-        
-        # Zamenjujemo više uzastopnih razmaka jednim razmakom
-        normalized = re.sub(r'\s+', ' ', normalized)
-        
-        # Uklanjamo razmake na početku i kraju
-        normalized = normalized.strip()
-        
-        # Zamenjujemo razmake donjom crtom za nazive fajlova
-        normalized = normalized.replace(' ', '_')
-        
-        return normalized 
+        Returns:
+            str: Originalni tekst ili normalizovani tekst ako mapiranje nije pronađeno
+        """
+        return NameMappingService.get_original_name(normalized_text) 
