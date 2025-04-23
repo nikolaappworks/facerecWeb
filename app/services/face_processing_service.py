@@ -171,13 +171,23 @@ class FaceProcessingService:
             logger.error(f"Error deleting original image {image_path}: {str(e)}")
 
     @staticmethod
-    def process_face(image_path, person, created_date, domain, image_id):
-        """Process face from image and return results"""
-        logger.info(f"Starting face processing for image: {image_path}")
+    def process_face(image_path, person, date_str, domain, image_id=None):
+        """
+        Procesira sliku, ekstrahuje lice i čuva ga
         
+        Args:
+            image_path (str): Putanja do slike
+            person (str): Ime osobe
+            date_str (str): Datum u formatu YYYY-MM-DD
+            domain (str): Domen sa kojeg dolazi slika
+            image_id (int, optional): ID slike za Kylo API
+            
+        Returns:
+            dict: Rezultat obrade
+        """
         try:
             # Convert date string to datetime object
-            date_obj = datetime.strptime(created_date, "%Y-%m-%d")
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
             date_str = date_obj.strftime("%Y-%m-%d")
 
             # Provera ukupnog broja slika
@@ -319,24 +329,31 @@ class FaceProcessingService:
                 except Exception as e:
                     logger.warning(f"S3 upload failed, continuing without it: {str(e)}")
                 
-                # Dobavi originalno ime osobe
-                formatted_person = TextService.get_original_text(person)
-                logger.info(f"Using original person name: {formatted_person} (normalized: {person})")
-                
-                # Proveri da li je originalno ime zaista dobijeno
-                if formatted_person == person and '_' in person:
-                    # Ako nije pronađeno mapiranje, a ime sadrži donju crtu, pokušaj da je zameniš razmakom
-                    alternative_person = person.replace('_', ' ')
-                    logger.info(f"No mapping found, using alternative formatting: {alternative_person}")
-                    KyloService.send_info_to_kylo(image_id, download_url, alternative_person, coordinates)
+                # Ako je image_id None, preskočimo slanje u Kylo
+                if image_id is not None:
+                    # Dobavi originalno ime osobe
+                    formatted_person = TextService.get_original_text(person)
+                    logger.info(f"Using original person name: {formatted_person} (normalized: {person})")
+                    
+                    # Proveri da li je originalno ime zaista dobijeno
+                    if formatted_person == person and '_' in person:
+                        # Ako nije pronađeno mapiranje, a ime sadrži donju crtu, pokušaj da je zameniš razmakom
+                        alternative_person = person.replace('_', ' ')
+                        logger.info(f"No mapping found, using alternative formatting: {alternative_person}")
+                        KyloService.send_info_to_kylo(image_id, download_url, alternative_person, coordinates)
+                    else:
+                        KyloService.send_info_to_kylo(image_id, download_url, formatted_person, coordinates)
                 else:
-                    KyloService.send_info_to_kylo(image_id, download_url, formatted_person, coordinates)
+                    logger.info(f"Skipping Kylo API call because image_id is None")
             else:
                 logger.error(f"Failed to save face at: {face_path}")
                 
-                # Dobavi originalno ime osobe i za skipped info
-                formatted_person = TextService.get_original_text(person)
-                KyloService.send_skipped_info_to_kylo(image_id, formatted_person, "Failed to save face.")
+                # Ako je image_id None, preskočimo slanje u Kylo
+                if image_id is not None:
+                    # Dobavi originalno ime osobe i za skipped info
+                    formatted_person = TextService.get_original_text(person)
+                    KyloService.send_skipped_info_to_kylo(image_id, formatted_person, "Failed to save face.")
+                
                 raise Exception("Failed to save face.")
 
             result = {
@@ -354,7 +371,14 @@ class FaceProcessingService:
             # Brisanje originalne slike i u slučaju greške
             FaceProcessingService.cleanup_original_image(image_path)
             logger.error(f"Error in process_face: {str(e)}")
-            raise 
+            
+            # Ako je image_id None, preskočimo slanje u Kylo
+            if image_id is not None:
+                # Dobavi originalno ime osobe i za skipped info
+                formatted_person = TextService.get_original_text(person)
+                KyloService.send_skipped_info_to_kylo(image_id, formatted_person, str(e))
+            
+            raise e
 
     @staticmethod
     def is_image_file(filename):

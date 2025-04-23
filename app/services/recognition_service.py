@@ -106,7 +106,7 @@ class RecognitionService:
         # Provera da li je results None ili prazan
         if results is None or len(results) == 0:
             logger.info("No results to analyze")
-            return {"message": "No matches found"}
+            return {"status": "error", "message": "No matches found"}
         
         try:
             logger.info(f"Results type: {type(results)}")
@@ -134,7 +134,7 @@ class RecognitionService:
                                     if len(part) >= 8 and (part[0:4].isdigit() or '-' in part):
                                         break
                                     name.append(part)
-                                name = ' '.join(name)
+                                name = '_'.join(name)  # Koristimo donju crtu za spajanje
                                 
                                 normalized_name = name.strip()
                                 
@@ -151,11 +151,11 @@ class RecognitionService:
                                 continue
             else:
                 logger.error(f"Unexpected results format: {type(results)}")
-                return {"message": "Unexpected results format"}
+                return {"status": "error", "message": "Unexpected results format"}
                 
         except Exception as e:
             logger.error(f"Error processing results: {str(e)}")
-            return {"message": "Error processing recognition results"}
+            return {"status": "error", "message": "Error processing recognition results"}
 
         # Log summary of all matches found
         logger.info(f"\n{'='*50}")
@@ -174,6 +174,7 @@ class RecognitionService:
             logger.info(f"No matches found within threshold {threshold}")
             # Return all matches even if none passed threshold
             return {
+                "status": "error",
                 "message": "No matches within threshold",
                 "all_detected_matches": [
                     {
@@ -225,10 +226,28 @@ class RecognitionService:
         
         logger.info(f"Best match found: {best_name} with confidence {round((1 - stats['min_distance']) * 100, 2)}%")
         
+        # Dobavi originalno ime osobe iz mapiranja
+        from app.services.text_service import TextService
+        original_person = TextService.get_original_text(best_name)
+        
+        # Ako je pronađeno originalno ime, koristi ga
+        if original_person != best_name:
+            logger.info(f"Found original name for {best_name}: {original_person}")
+            display_name = original_person
+        # Ako nije pronađeno originalno ime, a ime sadrži donju crtu, zameni je razmakom
+        elif '_' in best_name:
+            display_name = best_name.replace('_', ' ')
+            logger.info(f"No mapping found, using formatted name: {display_name}")
+        else:
+            display_name = best_name
+        
         return {
-            "message": f"Face recognized as: {best_name}",
+            "status": "success",
+            "message": f"Face recognized as: {display_name}",
+            "person": display_name,  # Koristimo originalno ili formatirano ime
             "best_match": {
-                "person_name": best_name,
+                "person_name": best_name,  # Originalno normalizovano ime
+                "display_name": display_name,  # Ime za prikaz (originalno ili formatirano)
                 "confidence_metrics": {
                     "occurrences": stats['occurrences'],
                     "average_distance": round(stats['avg_distance'], 4),
