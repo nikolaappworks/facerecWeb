@@ -199,7 +199,7 @@ class SyncController:
                         # Obriši original bez kopiranja
                         os.remove(source_path)
                         logger.info(f"Obrisan original (limit slika): {image}")
-                        skipped_images.append({"image": image, "reason": f"Person image limit reached ({MAX_TOTAL_IMAGES} images)"})
+                        skipped_images.append({"image": image, "reason": "Person image limit reached"})
                         continue
                     
                     # Proveri broj slika za osobu na taj datum
@@ -211,7 +211,7 @@ class SyncController:
                         # Obriši original bez kopiranja
                         os.remove(source_path)
                         logger.info(f"Obrisan original (dnevni limit): {image}")
-                        skipped_images.append({"image": image, "reason": f"Daily image limit reached ({MAX_DAILY_IMAGES} images)"})
+                        skipped_images.append({"image": image, "reason": "Daily image limit reached"})
                         continue
                     
                     # Kopiraj sliku ako su svi limiti zadovoljeni
