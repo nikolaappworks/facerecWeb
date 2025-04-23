@@ -303,4 +303,130 @@ class SyncController:
             
         except Exception as e:
             logger.error(f"Greška u SyncController.sync_images_from_kylo: {str(e)}")
-            return {"status": "error", "message": str(e)} 
+            return {"status": "error", "message": str(e)}
+
+    @staticmethod
+    def transfer_images_background(source_dir='storage/transfer_images', target_domain='media24', batch_size=30):
+        """
+        Pokreće transfer slika iz source_dir u storage/recognized_faces_prod/target_domain u pozadini
+        """
+        # Pokreni transfer u pozadini
+        BackgroundService.run_in_background(
+            SyncController.transfer_images,
+            source_dir,
+            target_domain,
+            batch_size
+        )
+        
+        return {
+            "message": "Transfer slika pokrenut u pozadini",
+            "source_dir": source_dir,
+            "target_domain": target_domain,
+            "batch_size": batch_size
+        }
+
+    @staticmethod
+    def transfer_images(source_dir='storage/transfer_images', target_domain='media24', batch_size=30):
+        """
+        Prebacuje slike iz source_dir u storage/recognized_faces_prod/target_domain
+        """
+        try:
+            logger.info(f"Započinjem transfer slika iz {source_dir} u storage/recognized_faces_prod/{target_domain}")
+            
+            # Osiguraj da izvorni direktorijum postoji
+            if not os.path.exists(source_dir):
+                logger.error(f"Izvorni direktorijum ne postoji: {source_dir}")
+                return {"error": "Izvorni direktorijum ne postoji"}
+            
+            # Osiguraj da ciljni direktorijum postoji
+            target_dir = f"storage/recognized_faces_prod/{target_domain}"
+            if not os.path.exists(target_dir):
+                os.makedirs(target_dir)
+                logger.info(f"Kreiran ciljni direktorijum: {target_dir}")
+            
+            # Dobavi listu slika u izvornom direktorijumu
+            try:
+                all_source_files = os.listdir(source_dir)
+                # Filtriraj samo slike
+                source_images = [f for f in all_source_files if SyncController.is_image_file(f)]
+                logger.info(f"Ukupno fajlova: {len(all_source_files)}, od toga slika: {len(source_images)}")
+            except Exception as e:
+                logger.error(f"Greška pri čitanju izvornog direktorijuma: {str(e)}")
+                return {"error": str(e), "transferred_count": 0}
+            
+            if not source_images:
+                logger.info(f"Nema slika za transfer u direktorijumu: {source_dir}")
+                return {"message": "Nema slika za transfer", "transferred_count": 0}
+            
+            # Putanja do test slike za prepoznavanje
+            script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            test_image_path = os.path.join(script_dir, 'scripts', 'test_face.JPG')
+            
+            # Proveri da li test slika postoji
+            if not os.path.exists(test_image_path):
+                logger.warning(f"Test slika ne postoji na putanji: {test_image_path}")
+                test_image_path = None
+            
+            # Prebaci slike u batch-evima
+            total_transferred = 0
+            total_batches = (len(source_images) + batch_size - 1) // batch_size  # Zaokruži na gore
+            
+            for batch_num in range(total_batches):
+                start_idx = batch_num * batch_size
+                end_idx = min(start_idx + batch_size, len(source_images))
+                batch_images = source_images[start_idx:end_idx]
+                
+                logger.info(f"Obrađujem batch {batch_num + 1}/{total_batches} ({len(batch_images)} slika)")
+                
+                # Prebaci slike iz batch-a
+                batch_transferred = 0
+                for image in batch_images:
+                    source_path = os.path.join(source_dir, image)
+                    target_path = os.path.join(target_dir, image)
+                    
+                    # Proveri da li je fajl (ne folder) i da li je slika
+                    if os.path.isfile(source_path) and SyncController.is_image_file(image):
+                        try:
+                            # Kopiraj sliku
+                            shutil.copy2(source_path, target_path)
+                            batch_transferred += 1
+                            logger.info(f"Kopirana slika: {image}")
+                            
+                            # Obriši original
+                            if os.path.exists(target_path) and os.path.getsize(target_path) == os.path.getsize(source_path):
+                                os.remove(source_path)
+                                logger.info(f"Obrisan original: {image}")
+                            else:
+                                logger.warning(f"Kopiranje nije uspelo, original nije obrisan: {image}")
+                            
+                        except Exception as e:
+                            logger.error(f"Greška pri kopiranju/brisanju {image}: {str(e)}")
+                
+                total_transferred += batch_transferred
+                logger.info(f"Prebačeno {batch_transferred} slika u batch-u {batch_num + 1}")
+                
+                # Inicijalizuj prepoznavanje lica nakon svakog batch-a
+                if batch_transferred > 0 and test_image_path:
+                    try:
+                        # Učitaj test sliku
+                        with open(test_image_path, 'rb') as f:
+                            test_image_bytes = f.read()
+                        
+                        # Pozovi prepoznavanje lica
+                        recognition_result = RecognitionController.recognize_face(test_image_bytes, target_domain)
+                        logger.info(f"Inicijalizacija prepoznavanja lica za batch {batch_num + 1} uspešna")
+                        logger.info(f"Rezultat prepoznavanja: {recognition_result}")
+                    except Exception as e:
+                        logger.error(f"Greška pri inicijalizaciji prepoznavanja lica za batch {batch_num + 1}: {str(e)}")
+            
+            logger.info(f"Transfer završen. Ukupno prebačeno {total_transferred} slika.")
+            
+            return {
+                "message": f"Transfer završen. Ukupno prebačeno {total_transferred} slika.",
+                "transferred_count": total_transferred,
+                "total_batches": total_batches
+            }
+            
+        except Exception as e:
+            logger.error(f"Greška pri transferu slika: {str(e)}")
+            return {"error": str(e)} 

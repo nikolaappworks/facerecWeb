@@ -146,3 +146,27 @@ def sync_kylo():
     except Exception as e:
         logger.error(f"Greška u sync_kylo endpoint-u: {str(e)}")
         return jsonify({'error': str(e)}), 500         
+
+@image_routes.route('/transfer-images', methods=['POST'])
+def transfer_images():
+    """
+    Endpoint za transfer slika iz storage/transfer_images u storage/recognized_faces_prod/media24
+    """
+    try:
+        # Parametri za transfer
+        source_dir = 'storage/transfer_images'
+        target_domain = 'media24'
+        batch_size = 30
+        
+        # Pokretanje transfera u pozadini
+        result = SyncController.transfer_images_background(
+            source_dir=source_dir,
+            target_domain=target_domain,
+            batch_size=batch_size
+        )
+        
+        return jsonify(result), 202  # 202 Accepted
+        
+    except Exception as e:
+        logger.error(f"Greška u transfer_images endpoint-u: {str(e)}")
+        return jsonify({'error': str(e)}), 500         
