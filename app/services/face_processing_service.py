@@ -199,6 +199,7 @@ class FaceProcessingService:
                 FaceProcessingService.cleanup_original_image(image_path)
                 raise Exception(f"Person image limit reached ({FaceProcessingService.MAX_TOTAL_IMAGES} images).")
 
+
             # Provera broja slika za taj dan
             daily_images = FaceProcessingService.count_images_for_person_on_date(person, date_str, domain)
             logger.info(f"Current daily images for {person} on {date_str} in domain {domain}: {daily_images}")
