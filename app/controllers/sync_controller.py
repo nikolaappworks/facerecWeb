@@ -5,6 +5,7 @@ from app.services.recognition_service import RecognitionService
 from app.controllers.recognition_controller import RecognitionController
 from app.services.background_service import BackgroundService
 from app.services.kylo_service import KyloService
+from app.services.text_service import TextService
 
 logger = logging.getLogger(__name__)
 
@@ -306,23 +307,22 @@ class SyncController:
             return {"status": "error", "message": str(e)}
 
     @staticmethod
-    def transfer_images_background(source_dir='storage/transfer_images', target_domain='media24', batch_size=30):
+    def transfer_images_background(source_dir='storage/transfer_images', target_dir='storage/recognized_faces_prod', test_image_path=None):
         """
-        Pokreće transfer slika iz source_dir u storage/recognized_faces_prod/target_domain u pozadini
+        Pokreće transfer slika iz source_dir u storage/recognized_faces_prod/target_dir u pozadini
         """
         # Pokreni transfer u pozadini
         BackgroundService.run_in_background(
             SyncController.transfer_images,
             source_dir,
-            target_domain,
-            batch_size
+            target_dir,
+            test_image_path
         )
         
         return {
             "message": "Transfer slika pokrenut u pozadini",
             "source_dir": source_dir,
-            "target_domain": target_domain,
-            "batch_size": batch_size
+            "target_dir": target_dir
         }
 
     @staticmethod
@@ -382,25 +382,50 @@ class SyncController:
                 batch_transferred = 0
                 for image in batch_images:
                     source_path = os.path.join(source_dir, image)
-                    target_path = os.path.join(target_dir, image)
                     
                     # Proveri da li je fajl (ne folder) i da li je slika
                     if os.path.isfile(source_path) and SyncController.is_image_file(image):
                         try:
+                            # Izvuci ime osobe i datum iz naziva fajla
+                            # Format: "Zsombor Kálnoki-Kis_2024-08-05_1739272302457.jpg"
+                            filename_without_ext, ext = os.path.splitext(image)
+                            parts = filename_without_ext.split('_')
+                            
+                            # Pretpostavljamo da je prvi deo ime osobe, drugi datum, a treći timestamp
+                            if len(parts) >= 3:
+                                original_person = parts[0]  # Originalno ime osobe
+                                date_str = parts[1]  # Datum u formatu YYYY-MM-DD
+                                timestamp = parts[2]  # Timestamp
+                                
+                                # Normalizuj ime osobe
+                                normalized_person = TextService.normalize_text(original_person, save_mapping=True)
+                                
+                                logger.info(f"Izvučeno ime: '{original_person}', normalizovano: '{normalized_person}', datum: {date_str}")
+                                
+                                # Kreiraj novo ime fajla sa normalizovanim imenom
+                                new_filename = f"{normalized_person}_{date_str}_{timestamp}{ext}"
+                                target_path = os.path.join(target_dir, new_filename)
+                                
+                                logger.info(f"Novo ime fajla: {new_filename}")
+                            else:
+                                # Ako format nije očekivan, koristi originalno ime
+                                logger.warning(f"Neočekivan format imena fajla: {image}")
+                                target_path = os.path.join(target_dir, image)
+                            
                             # Kopiraj sliku
                             shutil.copy2(source_path, target_path)
                             batch_transferred += 1
-                            logger.info(f"Kopirana slika: {image}")
+                            logger.info(f"Kopirana slika: {image} -> {os.path.basename(target_path)}")
                             
-                            # Obriši original
-                            if os.path.exists(target_path) and os.path.getsize(target_path) == os.path.getsize(source_path):
-                                os.remove(source_path)
-                                logger.info(f"Obrisan original: {image}")
-                            else:
-                                logger.warning(f"Kopiranje nije uspelo, original nije obrisan: {image}")
+                            # Privremeno isključeno brisanje originalnih slika
+                            # if os.path.exists(target_path) and os.path.getsize(target_path) == os.path.getsize(source_path):
+                            #     os.remove(source_path)
+                            #     logger.info(f"Obrisan original: {image}")
+                            # else:
+                            #     logger.warning(f"Kopiranje nije uspelo, original nije obrisan: {image}")
                             
                         except Exception as e:
-                            logger.error(f"Greška pri kopiranju/brisanju {image}: {str(e)}")
+                            logger.error(f"Greška pri kopiranju/obradi {image}: {str(e)}")
                 
                 total_transferred += batch_transferred
                 logger.info(f"Prebačeno {batch_transferred} slika u batch-u {batch_num + 1}")
