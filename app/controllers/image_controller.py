@@ -33,13 +33,16 @@ class ImageController:
         Obrađuje upload slike, ekstrahuje lice i čuva ga
         """
         try:
+            # Sačuvaj originalno ime pre normalizacije
+            original_person = person
+            
             # Normalizuj ime osobe
-            normalized_person = TextService.normalize_text(person)
-            logger.info(f"Normalizovano ime osobe: '{person}' -> '{normalized_person}'")
+            normalized_person = TextService.normalize_text(person, save_mapping=True)
+            logger.info(f"Normalizovano ime osobe: '{original_person}' -> '{normalized_person}'")
             
             # Ako je normalizacija uklonila sve karaktere, koristi originalno ime
             if not normalized_person:
-                logger.warning(f"Normalizacija je uklonila sve karaktere iz imena '{person}', koristim originalno ime")
+                logger.warning(f"Normalizacija je uklonila sve karaktere iz imena '{original_person}', koristim originalno ime")
                 normalized_person = person
             
             # Pokrenemo asinhronu obradu
