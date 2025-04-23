@@ -77,85 +77,85 @@ class FaceProcessingService:
 
     @staticmethod
     def count_images_for_person_on_date(person: str, date_str: str, domain: str) -> int:
-        """Broji slike za osobu na određeni datum u domenu"""
-        try:
-            # Dobijamo putanju do domain foldera
-            domain_path = FaceProcessingService.get_domain_folder(domain)
+        """
+        Broji broj slika za određenu osobu na određeni datum u oba foldera
+        """
+        count = 0
+        
+        # Putanje do oba foldera
+        recognized_faces_path = os.path.join('storage/recognized_faces', domain)
+        recognized_faces_prod_path = os.path.join('storage/recognized_faces_prod', domain)
+        
+        # Funkcija za proveru da li slika odgovara osobi i datumu
+        def matches_person_and_date(filename):
+            # Pretpostavljamo format: ime_osobe_YYYYMMDD_*.jpg
+            parts = filename.split('_')
+            if len(parts) < 3:
+                return False
             
-            # Ako folder ne postoji, vrati 0
-            if not os.path.exists(domain_path):
-                return 0
+            # Proveri da li je ime osobe u nazivu fajla
+            if person not in filename:
+                return False
             
-            # Listamo sve fajlove u domain folderu
-            all_files = os.listdir(domain_path)
+            # Proveri da li je datum u nazivu fajla
+            for part in parts:
+                if part == date_str or part.startswith(date_str):
+                    return True
             
-            # Pripremamo person string (zamenjujemo razmake sa '_')
-            sanitized_person = person.strip('"\'').replace(' ', '_')
-            
-            # Filtriramo fajlove za osobu i datum
-            matching_files = []
-            for f in all_files:
-                # Razdvajamo ime fajla na delove
-                parts = f.split('_')
-                # Rekonstruišemo ime osobe iz delova (sve do datuma)
-                file_person_parts = []
-                for part in parts:
-                    if len(part) >= 8 and (part[0:4].isdigit() or '-' in part):
-                        break
-                    file_person_parts.append(part)
-                file_person = '_'.join(file_person_parts)
-                
-                # Proveravamo da li se podudaraju osoba i datum
-                if file_person == sanitized_person and date_str in f:
-                    matching_files.append(f)
-            
-            logger.info(f"Found {len(matching_files)} images for {person} on {date_str} in domain {domain}")
-            return len(matching_files)
-            
-        except Exception as e:
-            logger.error(f"Error counting images: {str(e)}")
-            return 0
+            return False
+        
+        # Brojanje u recognized_faces folderu
+        if os.path.exists(recognized_faces_path):
+            try:
+                for filename in os.listdir(recognized_faces_path):
+                    if FaceProcessingService.is_image_file(filename) and matches_person_and_date(filename):
+                        count += 1
+            except Exception as e:
+                logger.error(f"Error counting daily images in recognized_faces: {str(e)}")
+        
+        # Brojanje u recognized_faces_prod folderu
+        if os.path.exists(recognized_faces_prod_path):
+            try:
+                for filename in os.listdir(recognized_faces_prod_path):
+                    if FaceProcessingService.is_image_file(filename) and matches_person_and_date(filename):
+                        count += 1
+            except Exception as e:
+                logger.error(f"Error counting daily images in recognized_faces_prod: {str(e)}")
+        
+        logger.info(f"Daily images for {person} on {date_str} in both folders: {count}")
+        return count
 
     @staticmethod
     def count_total_images_for_person(person: str, domain: str) -> int:
-        """Broji ukupan broj slika za osobu u domenu"""
-        try:
-            # Dobijamo putanju do domain foldera
-            domain_path = FaceProcessingService.get_domain_folder(domain)
-            
-            # Ako folder ne postoji, vrati 0
-            if not os.path.exists(domain_path):
-                return 0
-            
-            # Listamo sve fajlove u domain folderu
-            all_files = os.listdir(domain_path)
-            
-            # Pripremamo person string (zamenjujemo razmake sa '_')
-            sanitized_person = person.strip('"\'').replace(' ', '_')
-            
-            # Filtriramo fajlove za osobu
-            matching_files = []
-            for f in all_files:
-                # Razdvajamo ime fajla na delove
-                parts = f.split('_')
-                # Rekonstruišemo ime osobe iz delova (sve do datuma)
-                file_person_parts = []
-                for part in parts:
-                    if len(part) >= 8 and (part[0:4].isdigit() or '-' in part):
-                        break
-                    file_person_parts.append(part)
-                file_person = '_'.join(file_person_parts)
-                
-                # Proveravamo da li se podudara osoba
-                if file_person == sanitized_person:
-                    matching_files.append(f)
-            
-            logger.info(f"Found total of {len(matching_files)} images for {person} in domain {domain}")
-            return len(matching_files)
-            
-        except Exception as e:
-            logger.error(f"Error counting total images: {str(e)}")
-            return 0
+        """
+        Broji ukupan broj slika za određenu osobu u oba foldera (recognized_faces i recognized_faces_prod)
+        """
+        count = 0
+        
+        # Putanje do oba foldera
+        recognized_faces_path = os.path.join('storage/recognized_faces', domain)
+        recognized_faces_prod_path = os.path.join('storage/recognized_faces_prod', domain)
+        
+        # Brojanje u recognized_faces folderu
+        if os.path.exists(recognized_faces_path):
+            try:
+                for filename in os.listdir(recognized_faces_path):
+                    if FaceProcessingService.is_image_file(filename) and person in filename:
+                        count += 1
+            except Exception as e:
+                logger.error(f"Error counting images in recognized_faces: {str(e)}")
+        
+        # Brojanje u recognized_faces_prod folderu
+        if os.path.exists(recognized_faces_prod_path):
+            try:
+                for filename in os.listdir(recognized_faces_prod_path):
+                    if FaceProcessingService.is_image_file(filename) and person in filename:
+                        count += 1
+            except Exception as e:
+                logger.error(f"Error counting images in recognized_faces_prod: {str(e)}")
+        
+        logger.info(f"Total images for {person} in both folders: {count}")
+        return count
 
     @staticmethod
     def cleanup_original_image(image_path):
@@ -340,3 +340,9 @@ class FaceProcessingService:
             FaceProcessingService.cleanup_original_image(image_path)
             logger.error(f"Error in process_face: {str(e)}")
             raise 
+
+    @staticmethod
+    def is_image_file(filename):
+        """Proverava da li je fajl slika na osnovu ekstenzije"""
+        return '.' in filename and \
+               filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'} 
