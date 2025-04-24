@@ -74,6 +74,7 @@ class FaceProcessingService:
             return DeepFace.extract_faces(img_path=img_path, enforce_detection=True, detector_backend='retinaface')
         except Exception as e:
             logger.error(f"Face extraction error: {str(e)}")
+            KyloService.send_skipped_info_to_kylo(image_id, person, "No face found.")
             return None
 
     @staticmethod
