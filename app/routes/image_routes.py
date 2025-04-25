@@ -4,6 +4,7 @@ from app.controllers.sync_controller import SyncController
 from app.services.validation_service import ValidationService
 from datetime import datetime
 from app.controllers.recognition_controller import RecognitionController
+from app.controllers.object_detection_controller import ObjectDetectionController
 import logging
 import os
 
@@ -169,4 +170,36 @@ def transfer_images():
         
     except Exception as e:
         logger.error(f"Greška u transfer_images endpoint-u: {str(e)}")
+        return jsonify({'error': str(e)}), 500         
+
+@image_routes.route('/upload-for-detection', methods=['POST'])
+def upload_for_detection():
+    """
+    Endpoint for uploading images for object detection.
+    Images are resized and stored in storage/objectDetection.
+    """
+    try:
+        auth_token = request.headers.get('Authorization')
+        validation_service = ValidationService()
+
+        if not auth_token:
+            return jsonify({'message': 'Unauthorized'}), 401
+        
+        if not validation_service.validate_auth_token(auth_token):
+            return jsonify({'message': 'Unauthorized'}), 401
+        
+        if 'image' not in request.files:
+            return jsonify({"error": "No image in request"}), 400
+            
+        image_file = request.files['image']
+        if not image_file.filename:
+            return jsonify({"error": "No selected file"}), 400
+            
+        # Call the controller to handle the image
+        result = ObjectDetectionController.handle_detection_image(image_file)
+        
+        return jsonify(result), 202  # 202 Accepted
+        
+    except Exception as e:
+        logger.error(f"Error in upload_for_detection endpoint: {str(e)}")
         return jsonify({'error': str(e)}), 500         
