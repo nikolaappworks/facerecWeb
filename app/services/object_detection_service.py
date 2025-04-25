@@ -61,7 +61,7 @@ class ObjectDetectionService:
             logger.error(f"Error processing image: {str(e)}")
             raise 
 
-    def _process_image_in_background(image_path):
+    def _process_image_in_background(image_path, tracking_token):
         """
         Process the image in a background thread
         
@@ -120,6 +120,7 @@ class ObjectDetectionService:
             else:
                 logger.warning("Token usage data not found in response.")  
 
+            logger.info(f"Tokennnnnnnnnnn: {tracking_token}")
             logger.info(f"Background processing completed for image: {image_path}")
             
             # Delete the image after successful processing

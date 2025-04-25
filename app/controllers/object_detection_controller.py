@@ -1,6 +1,8 @@
 import logging
 import os
 import threading
+import uuid
+import secrets
 from app.services.object_detection_service import ObjectDetectionService
 
 logger = logging.getLogger(__name__)
@@ -11,7 +13,7 @@ class ObjectDetectionController:
     """
     
     @staticmethod
-    def handle_detection_image(image_file):
+    def handle_detection_image(image_file, tracking_token):
         """
         Handle the uploaded image for object detection
         
@@ -31,7 +33,7 @@ class ObjectDetectionController:
             # Start background processing thread
             thread = threading.Thread(
                 target=ObjectDetectionService._process_image_in_background,
-                args=(result["path"],)
+                args=(result["path"], tracking_token)
             )
             thread.daemon = True
             thread.start()
@@ -39,10 +41,15 @@ class ObjectDetectionController:
             return {
                 "success": True,
                 "message": "Image successfully uploaded for object detection. Processing started in background.",
-                "data": result
+                "token": tracking_token
             }
             
         except Exception as e:
             logger.error(f"Error processing image for object detection: {str(e)}")
             raise
+
+    def generate_tracking_token():
+        random_part = secrets.token_hex(8)
+        uuid_part = str(uuid.uuid4())
+        return f"{uuid_part}-{random_part}" 
     

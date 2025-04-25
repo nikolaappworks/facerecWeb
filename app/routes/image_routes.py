@@ -196,7 +196,9 @@ def upload_for_detection():
             return jsonify({"error": "No selected file"}), 400
             
         # Call the controller to handle the image
-        result = ObjectDetectionController.handle_detection_image(image_file)
+
+        tracking_token = ObjectDetectionController.generate_tracking_token()
+        result = ObjectDetectionController.handle_detection_image(image_file, tracking_token)
         
         return jsonify(result), 202  # 202 Accepted
         
