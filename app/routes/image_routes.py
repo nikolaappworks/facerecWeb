@@ -205,3 +205,68 @@ def upload_for_detection():
     except Exception as e:
         logger.error(f"Error in upload_for_detection endpoint: {str(e)}")
         return jsonify({'error': str(e)}), 500         
+
+@image_routes.route('/manage-image', methods=['POST'])
+def manage_image():
+    """
+    Endpoint for managing images (edit or delete)
+    """
+    try:
+        auth_token = request.headers.get('Authorization')
+        validation_service = ValidationService()
+
+        if not auth_token:
+            return jsonify({'message': 'Unauthorized'}), 401
+        
+        if not validation_service.validate_auth_token(auth_token):
+            return jsonify({'message': 'Unauthorized'}), 401
+        
+        # Get JSON data from request, handling potential Content-Type issues
+        try:
+            data = request.get_json(force=True)  # force=True ignores Content-Type header
+        except Exception as e:
+            return jsonify({"error": f"Invalid JSON data: {str(e)}"}), 400
+            
+        if not data:
+            return jsonify({"error": "No JSON data in request"}), 400
+            
+        # Validate required fields
+        if 'filename' not in data:
+            return jsonify({"error": "Missing required field: filename"}), 400
+            
+        if 'action' not in data:
+            return jsonify({"error": "Missing required field: action"}), 400
+            
+        # Get domain from validation service
+        domain = validation_service.get_domain()
+        
+        # Process based on action
+        if data['action'] == 'delete':
+            # Call controller to handle image deletion
+            from app.controllers.image_management_controller import ImageManagementController
+            result = ImageManagementController.handle_image_deletion(
+                filename=data['filename'],
+                domain=domain
+            )
+            return jsonify(result), 200
+            
+        elif data['action'] == 'edit':
+            # Validate person field for edit action
+            if 'person' not in data:
+                return jsonify({"error": "Missing required field for edit action: person"}), 400
+                
+            # Call controller to handle image editing (placeholder)
+            from app.controllers.image_management_controller import ImageManagementController
+            result = ImageManagementController.handle_image_editing(
+                filename=data['filename'],
+                person=data['person'],
+                domain=domain
+            )
+            return jsonify(result), 200
+            
+        else:
+            return jsonify({"error": f"Invalid action: {data['action']}"}), 400
+            
+    except Exception as e:
+        logger.error(f"Error in manage_image endpoint: {str(e)}")
+        return jsonify({'error': str(e)}), 500         
