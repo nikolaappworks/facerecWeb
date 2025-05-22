@@ -300,7 +300,7 @@ class ImageService:
                     file_extension = self._get_file_extension(image_url)
                     
                     # Create a filename based on the search term, index and timestamp
-                    sanitized_name = f"{name}_{last_name}_{timestamp}_{i+1}{file_extension}"
+                    sanitized_name = f"{name.replace(' ', '_')}_{last_name.replace(' ', '_')}_{timestamp}_{i+1}{file_extension}"
                     file_path = os.path.join(self.storage_path, sanitized_name)
                     
                     current_app.logger.info(f"Will save to: {file_path}")
