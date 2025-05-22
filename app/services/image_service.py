@@ -212,29 +212,48 @@ class ImageService:
             # Create the search query
             search_term = f"{name} {last_name} {occupation}".strip()
             encoded_search_term = quote(search_term)
+            encoded_search_term = encoded_search_term.replace("%20", " ")  # Zameni %20 sa razmakom
             
             exact_terms = f"{name} {last_name}".strip()
             encoded_exact_terms = quote(exact_terms)
+            encoded_exact_terms = encoded_exact_terms.replace("%20", " ")  # Zameni %20 sa razmakom
             
             # Construct the API URL
-            url = (
-                f"https://serpapi.com/search"
-                f"?engine=google_images"
-                f"&q={encoded_search_term}"
-                f"&key={self.api_key}"
-                f"&imgsz=xga"
-                f"&device=desktop"
-                f"&google_domain=google.com"
-                f"&hl=en"
-                f"&gl=us"
-                f"&image_type=face"
-            )
+            # url = (
+            #     f"https://serpapi.com/search"
+            #     f"?engine=google_images"
+            #     f"&q={encoded_search_term}"
+            #     f"&key={self.api_key}"
+            #     f"&imgsz=xga"
+            #     f"&device=desktop"
+            #     f"&google_domain=google.com"
+            #     f"&hl=en"
+            #     f"&gl=us"
+            #     f"&image_type=face"
+            # )
             
+
+
+            url = "https://real-time-image-search.p.rapidapi.com/search"
+
+            querystring = {"query": f"{encoded_search_term}","limit":"100","size":"1024x768_and_more","type":"face","region":"us"}
+            current_app.logger.info(querystring)
+            headers = {
+                "x-rapidapi-key": "c3e8343ca0mshe1b719bea5326dbp11db14jsnf52a7fb8ab17",
+                "x-rapidapi-host": "real-time-image-search.p.rapidapi.com"
+            }
+
+            response = requests.get(url, headers=headers, params=querystring)
+
+
+
+            current_app.logger.info(response.json())
+
             # Log the full URL for debugging
             current_app.logger.info(f"Making API request to: {url}")
             
             # Make the API request
-            response = requests.get(url)
+            # response = requests.get(url)
             
             if response.status_code != 200:
                 current_app.logger.error(f"API request failed with status code {response.status_code}: {response.text}")
@@ -244,7 +263,7 @@ class ImageService:
             data = response.json()
             
             # Check if there are any search results
-            if 'images_results' not in data:
+            if 'data' not in data:
                 current_app.logger.warning(f"No images found for search term: {search_term}")
                 return {"success": True, "message": "No images found", "count": 0}
             
@@ -258,10 +277,10 @@ class ImageService:
             
             # Limit to maximum 50 images
             max_images = 70
-            image_results = data['images_results'][:max_images]
+            image_results = data['data'][:max_images]
             
             # Log the number of items found and limit
-            current_app.logger.info(f"Found {len(data['images_results'])} images, limiting to {len(image_results)} for search term: {search_term}")
+            current_app.logger.info(f"Found {len(data['data'])} images, limiting to {len(image_results)} for search term: {search_term}")
             
             # Get current timestamp for unique filenames
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -270,7 +289,7 @@ class ImageService:
             for i, item in enumerate(image_results):
                 try:
                     # Try to get the original image URL first, then thumbnail if not available
-                    image_url = item.get('original') or item.get('thumbnail')
+                    image_url = item.get('thumbnail_url') or item.get('url')
                     if not image_url:
                         current_app.logger.warning(f"No link found for item {i+1}")
                         continue
@@ -346,7 +365,7 @@ class ImageService:
                 "count": len(saved_images),
                 "images": saved_images,
                 "failed": failed_images,
-                "total_found": len(data['images_results']),
+                "total_found": len(data['data']),
                 "processed": len(image_results)
             }
             

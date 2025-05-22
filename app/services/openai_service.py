@@ -79,3 +79,38 @@ class OpenAIService:
                 "required": ["description", "objects", "metatags"]
             }
         }
+
+    def get_celebrity_schema(self):
+        return {
+            "name": "get_celebrity",
+            "description": "Generate lists of names for giving occupation of celebrity.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "objects": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "List of celebrity names"
+                    }
+                },
+                "required": ["objects"]
+            }
+        }
+
+    def get_humanity_check_schema(self):
+        return {
+            "name": "get_humanity_check",
+            "description": "Return true if the person is real human, otherwise return false.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "human": {
+                        "type": "boolean",
+                        "description": "Return true if the person is real human, otherwise return false."
+                    }
+                },
+                "required": ["human"]
+            }
+        } 
