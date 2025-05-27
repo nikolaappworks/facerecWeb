@@ -11,6 +11,7 @@ opencv-python>=4.8.0
 
 # Web framework and utilities
 Flask>=3.1.0
+flask-cors==4.0.1
 python-dotenv>=1.1.0
 
 # Face detection
@@ -27,5 +28,5 @@ pandas>=0.23.4
 openpyxl==3.1.2
 boto3>=1.26.0
 openai
-
+pusher
 

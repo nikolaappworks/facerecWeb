@@ -6,10 +6,19 @@ from PIL import Image
 from io import BytesIO
 import datetime
 import base64
+import pusher
 
 from app.services.openai_service import OpenAIService
 
 logger = logging.getLogger(__name__)
+
+pusher_client = pusher.Pusher(
+  app_id='1999185',
+  key='3a3e4e065f86231ecf84',
+  secret='acbb3d46dff78d95be40',
+  cluster='eu',
+  ssl=True
+)
 
 class ObjectDetectionService:
     """
@@ -110,6 +119,7 @@ class ObjectDetectionService:
             if response.choices and response.choices[0].message.function_call:
                 function_call = response.choices[0].message.function_call
                 arguments = json.loads(function_call.arguments)
+                pusher_client.trigger('my-channel', 'my-event', {'message': f"{arguments}"})
                 logger.info(f"Response: {json.dumps(arguments,indent=4)}")
 
             if hasattr(response, "usage"):
