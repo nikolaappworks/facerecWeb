@@ -119,7 +119,7 @@ class ObjectDetectionService:
             if response.choices and response.choices[0].message.function_call:
                 function_call = response.choices[0].message.function_call
                 arguments = json.loads(function_call.arguments)
-                pusher_client.trigger('my-channel', 'my-event', {'message': f"{arguments}"})
+                pusher_client.trigger('my-channel', 'my-event', {'message': f"{json.dumps(arguments,indent=4)}"})
                 logger.info(f"Response: {json.dumps(arguments,indent=4)}")
 
             if hasattr(response, "usage"):
