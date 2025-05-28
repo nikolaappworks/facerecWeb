@@ -120,8 +120,9 @@ class TrainingProcessor:
         try:
             files = os.listdir(source_folder_path)
             image_files = [f for f in files if self.is_image_file(f)]
+            total_images = len(image_files)
             
-            logger.info(f"Found {len(image_files)} images in {person_folder}")
+            logger.info(f"Found {total_images} images in {person_folder}")
             
             for image_file in image_files:
                 source_path = os.path.join(source_folder_path, image_file)
@@ -148,6 +149,20 @@ class TrainingProcessor:
                 except Exception as e:
                     logger.error(f"Error copying {image_file}: {str(e)}")
                     skipped_count += 1
+            
+            # Proveri da li treba obrisati source folder
+            processed_images = copied_count + already_exists_count
+            if processed_images == total_images and skipped_count == 0:
+                # Sve slike su uspešno obrađene (kopirane ili već postojale)
+                logger.info(f"All {total_images} images processed successfully, deleting source folder: {person_folder}")
+                if self.delete_folder(person_folder):
+                    logger.info(f"Successfully deleted source folder: {person_folder}")
+                else:
+                    logger.error(f"Failed to delete source folder: {person_folder}")
+            elif skipped_count > 0:
+                logger.warning(f"Some images failed to copy ({skipped_count} errors), keeping source folder: {person_folder}")
+            else:
+                logger.info(f"Partial processing completed for {person_folder}")
             
         except Exception as e:
             logger.error(f"Error listing files in {source_folder_path}: {str(e)}")
@@ -205,7 +220,8 @@ class TrainingProcessor:
         total_skipped = 0
         total_already_exists = 0
         processed_folders = 0
-        deleted_folders = 0
+        deleted_small_folders = 0  # Folderi obrisani zbog malog broja slika
+        deleted_processed_folders = 0  # Folderi obrisani nakon uspešne obrade
         
         for folder in person_folders:
             logger.info(f"\n--- Processing folder {processed_folders + 1}/{len(person_folders)}: {folder} ---")
@@ -217,18 +233,29 @@ class TrainingProcessor:
             if image_count <= self.min_images_threshold:
                 logger.info(f"Folder {folder} has {image_count} images (<= {self.min_images_threshold}), deleting entire folder")
                 if self.delete_folder(folder):
-                    deleted_folders += 1
-                    logger.info(f"Successfully deleted folder: {folder}")
+                    deleted_small_folders += 1
+                    logger.info(f"Successfully deleted small folder: {folder}")
                 else:
-                    logger.error(f"Failed to delete folder: {folder}")
+                    logger.error(f"Failed to delete small folder: {folder}")
             else:
                 logger.info(f"Folder {folder} has {image_count} images (> {self.min_images_threshold}), proceeding with processing")
+                
+                # Pre obrade - proveri da li folder još uvek postoji
+                if not os.path.exists(os.path.join(self.source_base, folder)):
+                    logger.info(f"Folder {folder} no longer exists (possibly deleted in previous run), skipping")
+                    processed_folders += 1
+                    continue
                 
                 # Kopiraj slike iz trenutnog foldera
                 copied, skipped, already_exists = self.copy_images_from_folder(folder)
                 total_copied += copied
                 total_skipped += skipped
                 total_already_exists += already_exists
+                
+                # Proveri da li je folder obrisan nakon obrade
+                if not os.path.exists(os.path.join(self.source_base, folder)):
+                    deleted_processed_folders += 1
+                    logger.info(f"Source folder was deleted after processing: {folder}")
                 
                 if copied > 0:
                     # Pokreni face recognition nakon kopiranja slika
@@ -251,7 +278,9 @@ class TrainingProcessor:
         
         logger.info(f"\n--- PROCESSING COMPLETE ---")
         logger.info(f"Processed folders: {processed_folders}/{len(person_folders)}")
-        logger.info(f"Deleted folders (with <= {self.min_images_threshold} images): {deleted_folders}")
+        logger.info(f"Deleted small folders (with <= {self.min_images_threshold} images): {deleted_small_folders}")
+        logger.info(f"Deleted processed folders (after successful processing): {deleted_processed_folders}")
+        logger.info(f"Total deleted folders: {deleted_small_folders + deleted_processed_folders}")
         logger.info(f"Total images copied: {total_copied}")
         logger.info(f"Total images skipped (errors): {total_skipped}")
         logger.info(f"Total images already existed: {total_already_exists}")
