@@ -28,8 +28,8 @@ class ImageService:
     def __init__(self):
         self.api_key = os.getenv('SERPAPI_SEARCH_API_KEY', 'af309518c81f312d3abcffb4fc2165e6ae6bd320b0d816911d0d1153ccea88c8')
         self.cx = os.getenv('GOOGLE_SEARCH_CX', '444622b2b520b4d97')
-        self.storage_path = os.getenv('IMAGE_STORAGE_PATH', 'storage/training/media24')
-        self.training_pass_path = os.getenv('TRAINING_PASS_PATH', 'storage/trainingPass')
+        self.storage_path = os.getenv('IMAGE_STORAGE_PATH', 'storage/training/serbia')
+        self.training_pass_path = os.getenv('TRAINING_PASS_PATH', 'storage/trainingPassSerbia')
 
     @staticmethod
     def allowed_file(filename):
