@@ -125,19 +125,22 @@ class TrainingProcessor:
             
             for image_file in image_files:
                 source_path = os.path.join(source_folder_path, image_file)
-                target_path = os.path.join(self.target_dir, image_file)
                 
-                # Proveri da li slika već postoji na odredištu
+                # Transformiši ime fajla u novi format
+                transformed_filename = self.transform_filename(image_file)
+                target_path = os.path.join(self.target_dir, transformed_filename)
+                
+                # Proveri da li slika već postoji na odredištu (sa transformisanim imenom)
                 if os.path.exists(target_path):
-                    logger.info(f"Image already exists, skipping: {image_file}")
+                    logger.info(f"Image already exists, skipping: {image_file} -> {transformed_filename}")
                     already_exists_count += 1
                     continue
                 
                 try:
-                    # Kopiraj sliku (ne briši original za sada)
+                    # Kopiraj sliku sa novim imenom (ne briši original za sada)
                     shutil.copy2(source_path, target_path)
                     copied_count += 1
-                    logger.info(f"Copied: {image_file}")
+                    logger.info(f"Copied: {image_file} -> {transformed_filename}")
                     
                     # Kratka pauza između kopiranja
                     time.sleep(0.1)
@@ -253,6 +256,64 @@ class TrainingProcessor:
         logger.info(f"Total images skipped (errors): {total_skipped}")
         logger.info(f"Total images already existed: {total_already_exists}")
         logger.info(f"Total images processed: {total_copied + total_skipped + total_already_exists}")
+
+    def transform_filename(self, original_filename):
+        """
+        Transformiše ime fajla iz originalnog formata u novi format
+        
+        Original: Abraham_Nnamdi_Nwankwo_20250524_044003_66.jpg
+        Novi: Abraham_Nnamdi_Nwankwo_2025-05-24_04400366.jpg
+        """
+        try:
+            # Razdeli ime fajla na delove
+            name_part, extension = os.path.splitext(original_filename)
+            parts = name_part.split('_')
+            
+            if len(parts) < 4:
+                # Ako format nije kako očekujemo, vrati originalno ime
+                logger.warning(f"Unexpected filename format, keeping original: {original_filename}")
+                return original_filename
+            
+            # Pronađi datum (YYYYMMDD format)
+            date_index = -1
+            for i, part in enumerate(parts):
+                if len(part) == 8 and part.isdigit():
+                    # Proveri da li je validan datum format YYYYMMDD
+                    try:
+                        year = int(part[:4])
+                        month = int(part[4:6])
+                        day = int(part[6:8])
+                        if 2020 <= year <= 2030 and 1 <= month <= 12 and 1 <= day <= 31:
+                            date_index = i
+                            break
+                    except:
+                        continue
+            
+            if date_index == -1:
+                logger.warning(f"No valid date found in filename, keeping original: {original_filename}")
+                return original_filename
+            
+            # Izvuci delove
+            name_parts = parts[:date_index]  # Ime osobe
+            date_part = parts[date_index]    # Datum YYYYMMDD
+            remaining_parts = parts[date_index + 1:]  # Ostatak (vreme i broj)
+            
+            # Transformiši datum iz YYYYMMDD u YYYY-MM-DD
+            transformed_date = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}"
+            
+            # Spoji preostale delove (vreme i brojevi)
+            combined_suffix = ''.join(remaining_parts)
+            
+            # Kreiraj novo ime
+            new_parts = name_parts + [transformed_date, combined_suffix]
+            new_filename = '_'.join(new_parts) + extension
+            
+            logger.info(f"Transformed filename: {original_filename} -> {new_filename}")
+            return new_filename
+            
+        except Exception as e:
+            logger.error(f"Error transforming filename {original_filename}: {str(e)}")
+            return original_filename
 
 def main():
     """Glavna funkcija"""
