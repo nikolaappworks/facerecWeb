@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script za prebacivanje slika iz storage/trainingPass foldera u storage/recognized_faces_prod/media24
+Script za prebacivanje slika iz storage/trainingPass foldera u storage/recognized_faces_prod/serbia
 i pokretanje face recognition nakon svakog foldera.
 Ako folder ima 5 ili manje slika, briše se ceo folder.
 """
@@ -31,9 +31,9 @@ logger = logging.getLogger(__name__)
 
 class TrainingProcessor:
     def __init__(self):
-        self.source_base = "storage/trainingPass"
-        self.target_dir = "storage/recognized_faces_prod/media24"
-        self.domain = "media24"
+        self.source_base = "storage/trainingPassSerbia"
+        self.target_dir = "storage/recognized_faces_prod/serbia"
+        self.domain = "serbia"
         self.allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
         self.min_images_threshold = 5  # Minimalni broj slika potreban za proces
         
@@ -171,7 +171,7 @@ class TrainingProcessor:
         return copied_count, skipped_count, already_exists_count
     
     def run_face_recognition(self):
-        """Pokreće face recognition na media24 folderu"""
+        """Pokreće face recognition na serbia folderu"""
         logger.info("Starting face recognition process...")
         
         try:
