@@ -1,10 +1,30 @@
 # Email-to-Token Authentication Endpoint
 
-Ovaj dokument opisuje novi API endpoint koji omogućava dobijanje autentifikacionog tokena na osnovu email adrese korisnika.
+Ovaj dokument opisuje API endpoint koji omogućava dobijanje autentifikacionog tokena na osnovu email adrese korisnika.
 
 ## Pregled
 
-Endpoint prima email adresu sa fronta, pronalazi odgovarajući key u `CLIENTS_EMAILS` JSON-u, a zatim koristi taj key da pronađe token u postojećem `CLIENTS_TOKENS` JSON-u.
+Endpoint prima email adresu sa fronta, pronalazi odgovarajući key(s) u `CLIENTS_EMAILS` JSON-u, a zatim koristi taj/te key(s) da pronađe token(s) u postojećem `CLIENTS_TOKENS` JSON-u.
+
+**Nova funkcionalnost:** Endpoint sada podržava više domena po email adresi - ako imate jedan rezultat, vraća se u standardnom formatu, a ako imate dva ili više rezultata, vraća se niz tokena.
+
+## Multi-Domain Podrška
+
+Endpoint sada podržava konfiguraciju gde jedan email može imati tokene za različite domene:
+
+### Jednostruka domena (postojeća funkcionalnost):
+```bash
+CLIENTS_EMAILS={"rts@gmail.com": "rts", "hrt@gmail.com": "hrt"}
+```
+
+### Višestruke domene (nova funkcionalnost):
+```bash
+CLIENTS_EMAILS={"rts@gmail.com": ["rts", "rts_domain2"], "hrt@gmail.com": "hrt"}
+```
+
+**Ponašanje:**
+- **Jedan token:** Vraća se u standardnom formatu (backwards compatible)
+- **Više tokena:** Vraća se kao niz objekata sa dodatnim `domain` poljem
 
 ## Vaše Environment Varijable
 
@@ -46,6 +66,8 @@ Content-Type: application/json
 ```
 
 **Uspešan Odgovor (200 OK):**
+
+**Jednostruka domena (postojeći format):**
 ```json
 {
     "success": true,
@@ -53,6 +75,25 @@ Content-Type: application/json
         "token": "dJfY7Aq4mycEYEtaHxAiY6Ok43Me5IT2QwD",
         "email": "rts@gmail.com"
     }
+}
+```
+
+**Višestruke domene (novi format):**
+```json
+{
+    "success": true,
+    "data": [
+        {
+            "token": "dJfY7Aq4mycEYEtaHxAiY6Ok43Me5IT2QwD",
+            "email": "rts@gmail.com",
+            "domain": "rts"
+        },
+        {
+            "token": "anotherTokenForDifferentDomain123456789",
+            "email": "rts@gmail.com",
+            "domain": "rts_domain2"
+        }
+    ]
 }
 ```
 
@@ -126,11 +167,11 @@ Content-Type: application/json
 ## Kako funkcioniše
 
 1. **Frontend šalje email** na `/api/auth/token-by-email`
-2. **Service proverava CLIENTS_EMAILS** da pronađe odgovarajući key za email
-3. **Service traži token** u CLIENTS_TOKENS koristeći key iz prethodnog koraka
-4. **Vraća token** ili odgovarajuću grešku
+2. **Service proverava CLIENTS_EMAILS** da pronađe odgovarajući key(s) za email
+3. **Service traži token(s)** u CLIENTS_TOKENS koristeći key(s) iz prethodnog koraka
+4. **Vraća token(s)** u odgovarajućem formatu ili grešku
 
-### Primer logike:
+### Primer logike - jednostruka domena:
 
 ```
 Email: "rts@gmail.com"
@@ -139,7 +180,24 @@ CLIENTS_EMAILS lookup: "rts@gmail.com" → "rts"
 ↓
 CLIENTS_TOKENS reverse lookup: "rts" → "dJfY7Aq4mycEYEtaHxAiY6Ok43Me5IT2QwD"
 ↓
-Return token: "dJfY7Aq4mycEYEtaHxAiY6Ok43Me5IT2QwD"
+Return single format: {"token": "dJfY7Aq4mycEYEtaHxAiY6Ok43Me5IT2QwD", "email": "rts@gmail.com"}
+```
+
+### Primer logike - višestruke domene:
+
+```
+Email: "rts@gmail.com"
+↓
+CLIENTS_EMAILS lookup: "rts@gmail.com" → ["rts", "rts_domain2"]
+↓
+CLIENTS_TOKENS reverse lookup: 
+  - "rts" → "dJfY7Aq4mycEYEtaHxAiY6Ok43Me5IT2QwD"
+  - "rts_domain2" → "anotherTokenForDifferentDomain123456789"
+↓
+Return array format: [
+  {"token": "dJfY7Aq4mycEYEtaHxAiY6Ok43Me5IT2QwD", "email": "rts@gmail.com", "domain": "rts"},
+  {"token": "anotherTokenForDifferentDomain123456789", "email": "rts@gmail.com", "domain": "rts_domain2"}
+]
 ```
 
 ## Testiranje
@@ -207,8 +265,16 @@ async function getTokenByEmail(email) {
         const data = await response.json();
         
         if (data.success) {
-            console.log('Token retrieved:', data.data.token);
-            return data.data.token;
+            // Handle both single token and multiple tokens response
+            if (Array.isArray(data.data)) {
+                // Multiple domains - array response
+                console.log('Multiple tokens retrieved:', data.data);
+                return data.data; // Return array of token objects
+            } else {
+                // Single domain - object response  
+                console.log('Single token retrieved:', data.data.token);
+                return data.data; // Return single token object
+            }
         } else {
             console.error('Error:', data.error);
             throw new Error(data.error);
@@ -219,12 +285,20 @@ async function getTokenByEmail(email) {
     }
 }
 
-// Primer korišćenja
+// Primer korišćenja za jednostruku domenu
 getTokenByEmail('rts@gmail.com')
-    .then(token => {
-        // Koristite token za dalje autentifikacije
-        localStorage.setItem('authToken', token);
-        console.log('Token saved:', token);
+    .then(result => {
+        if (Array.isArray(result)) {
+            // Multiple domains
+            result.forEach((tokenData, index) => {
+                console.log(`Token ${index + 1} for domain ${tokenData.domain}:`, tokenData.token);
+                localStorage.setItem(`authToken_${tokenData.domain}`, tokenData.token);
+            });
+        } else {
+            // Single domain
+            localStorage.setItem('authToken', result.token);
+            console.log('Token saved:', result.token);
+        }
     })
     .catch(error => {
         // Handle greške
@@ -257,8 +331,16 @@ export const useAuthToken = () => {
             const data = await response.json();
             
             if (data.success) {
-                setLoading(false);
-                return data.data.token;
+                // Handle both single token and multiple tokens response
+                if (Array.isArray(data.data)) {
+                    // Multiple domains - array response
+                    console.log('Multiple tokens retrieved:', data.data);
+                    return data.data; // Return array of token objects
+                } else {
+                    // Single domain - object response  
+                    console.log('Single token retrieved:', data.data.token);
+                    return data.data; // Return single token object
+                }
             } else {
                 throw new Error(data.error);
             }
@@ -281,9 +363,18 @@ function LoginForm() {
         e.preventDefault();
         
         try {
-            const token = await getTokenByEmail(email);
-            localStorage.setItem('authToken', token);
-            // Redirect ili update app state
+            const result = await getTokenByEmail(email);
+            if (Array.isArray(result)) {
+                // Multiple domains
+                result.forEach((tokenData, index) => {
+                    console.log(`Token ${index + 1} for domain ${tokenData.domain}:`, tokenData.token);
+                    localStorage.setItem(`authToken_${tokenData.domain}`, tokenData.token);
+                });
+            } else {
+                // Single domain
+                localStorage.setItem('authToken', result.token);
+                console.log('Token saved:', result.token);
+            }
         } catch (error) {
             console.error('Login failed:', error);
         }

@@ -19,7 +19,8 @@ except ValueError as e:
 @auth_routes.route('/api/auth/token-by-email', methods=['POST'])
 def get_token_by_email():
     """
-    Endpoint to get authentication token by email address.
+    Endpoint to get authentication token(s) by email address.
+    Supports multiple domains - returns single format for one result, array for multiple.
     
     Method: POST
     Content-Type: application/json
@@ -30,13 +31,31 @@ def get_token_by_email():
     }
     
     Responses:
-    200 OK - Token found and returned
+    
+    200 OK - Single token found and returned (backwards compatible)
     {
         "success": true,
         "data": {
             "token": "dJfY7Aq4mycEYEtaHxAiY6Ok43Me5IT2QwD",
             "email": "rts@gmail.com"
         }
+    }
+    
+    200 OK - Multiple tokens found for different domains
+    {
+        "success": true,
+        "data": [
+            {
+                "token": "dJfY7Aq4mycEYEtaHxAiY6Ok43Me5IT2QwD",
+                "email": "rts@gmail.com",
+                "domain": "rts"
+            },
+            {
+                "token": "anotherTokenForDifferentDomain123456789",
+                "email": "rts@gmail.com", 
+                "domain": "rts_domain2"
+            }
+        ]
     }
     
     404 Not Found - Email not found in authorized users
@@ -48,7 +67,7 @@ def get_token_by_email():
     500 Internal Server Error - Token mapping issue
     {
         "success": false,
-        "error": "Token not found for key 'rts'. Please contact administrator"
+        "error": "Token not found for key(s) 'rts, rts_domain2'. Please contact administrator"
     }
     
     400 Bad Request - Invalid request format

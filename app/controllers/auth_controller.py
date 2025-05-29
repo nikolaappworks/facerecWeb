@@ -22,6 +22,7 @@ class AuthController:
     def get_token_by_email(self) -> Dict[str, Any]:
         """
         Handle POST request to get token by email address.
+        Supports multiple domains - returns single format for one result, array for multiple.
         
         Expected JSON payload:
         {
@@ -29,7 +30,7 @@ class AuthController:
         }
         
         Returns:
-            JSON response with token or error message
+            JSON response with token(s) or error message
         """
         try:
             # Validate request content type
@@ -57,8 +58,8 @@ class AuthController:
                     'error': 'Email field is required'
                 }), 400
             
-            # Get token using service
-            token, error_message = self.email_token_service.get_token_by_email(email)
+            # Get all tokens using the new multi-domain service method
+            tokens_data, error_message = self.email_token_service.get_tokens_by_email(email)
             
             if error_message:
                 # Log the attempt for security monitoring
@@ -70,15 +71,31 @@ class AuthController:
                 }), 404 if 'not found' in error_message.lower() else 500
             
             # Log successful token retrieval
-            logger.info(f"Token successfully retrieved for email: {email}")
+            logger.info(f"Token(s) successfully retrieved for email: {email} - {len(tokens_data)} domain(s)")
             
-            return jsonify({
-                'success': True,
-                'data': {
-                    'token': token,
-                    'email': email.strip().lower()
-                }
-            }), 200
+            # If only one result, return single format (backwards compatible)
+            if len(tokens_data) == 1:
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'token': tokens_data[0]['token'],
+                        'email': email.strip().lower()
+                    }
+                }), 200
+            
+            # If multiple results, return array format
+            else:
+                return jsonify({
+                    'success': True,
+                    'data': [
+                        {
+                            'token': token_data['token'],
+                            'email': email.strip().lower(),
+                            'domain': token_data['domain']
+                        }
+                        for token_data in tokens_data
+                    ]
+                }), 200
             
         except Exception as e:
             logger.error(f"Unexpected error in get_token_by_email: {str(e)}")

@@ -1,20 +1,21 @@
 from dotenv import load_dotenv
 import os
 import json
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 load_dotenv()
 
 
 class EmailTokenService:
-    """Service for handling email-to-token mapping operations."""
+    """Service for handling email-to-token mapping operations with multi-domain support."""
     
     def __init__(self):
         """Initialize the service with email-to-key mapping and client tokens."""
         try:
-            # CLIENTS_EMAILS mapira email -> key
-            # {"rts@gmail.com": "rts", "hrt@gmail.com": "hrt", ...}
-            self.clients_emails: Dict[str, str] = json.loads(
+            # CLIENTS_EMAILS can now map email -> list of keys for different domains
+            # {"rts@gmail.com": ["rts", "rts_domain2"], "hrt@gmail.com": ["hrt"], ...}
+            # or backwards compatible: {"rts@gmail.com": "rts", ...}
+            self.clients_emails: Dict[str, any] = json.loads(
                 os.getenv('CLIENTS_EMAILS', '{}')
             )
             
@@ -32,16 +33,16 @@ class EmailTokenService:
         except (json.JSONDecodeError, TypeError) as e:
             raise ValueError(f"Invalid JSON configuration in environment variables: {str(e)}")
     
-    def get_token_by_email(self, email: str) -> Tuple[Optional[str], Optional[str]]:
+    def get_tokens_by_email(self, email: str) -> Tuple[Optional[List[Dict[str, str]]], Optional[str]]:
         """
-        Get token for given email address.
+        Get all tokens for given email address (supports multiple domains).
         
         Args:
             email (str): Email address to look up
             
         Returns:
-            Tuple[Optional[str], Optional[str]]: (token, error_message)
-            If successful, returns (token, None)
+            Tuple[Optional[List[Dict[str, str]]], Optional[str]]: (list_of_token_data, error_message)
+            If successful, returns ([{"token": "...", "email": "...", "domain": "..."}], None)
             If error, returns (None, error_message)
         """
         if not email or not isinstance(email, str):
@@ -53,16 +54,63 @@ class EmailTokenService:
         if email not in self.clients_emails:
             return None, f"Email '{email}' not found in authorized users"
         
-        # Get the key for this email
-        key = self.clients_emails[email]
+        # Get the key(s) for this email - support both single key and list of keys
+        keys_data = self.clients_emails[email]
         
-        # Check if the key exists in our key-to-token mapping
-        if key not in self.key_to_token:
-            return None, f"Token not found for key '{key}'. Please contact administrator"
+        # Handle backwards compatibility - if it's a string, convert to list
+        if isinstance(keys_data, str):
+            keys = [keys_data]
+        elif isinstance(keys_data, list):
+            keys = keys_data
+        else:
+            return None, f"Invalid key configuration for email '{email}'"
         
-        # Return the token
-        return self.key_to_token[key], None
+        # Collect all tokens for this email
+        tokens_data = []
+        missing_keys = []
+        
+        for key in keys:
+            if key in self.key_to_token:
+                tokens_data.append({
+                    "token": self.key_to_token[key],
+                    "email": email,
+                    "domain": key  # Using key as domain identifier
+                })
+            else:
+                missing_keys.append(key)
+        
+        # If we have missing keys, return error
+        if missing_keys:
+            return None, f"Token not found for key(s) '{', '.join(missing_keys)}'. Please contact administrator"
+        
+        # If no tokens found at all
+        if not tokens_data:
+            return None, f"No tokens found for email '{email}'. Please contact administrator"
+        
+        return tokens_data, None
     
+    def get_token_by_email(self, email: str) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Get token for given email address (backwards compatible - returns first token).
+        
+        Args:
+            email (str): Email address to look up
+            
+        Returns:
+            Tuple[Optional[str], Optional[str]]: (token, error_message)
+            If successful, returns (token, None)
+            If error, returns (None, error_message)
+        """
+        tokens_data, error_message = self.get_tokens_by_email(email)
+        
+        if error_message:
+            return None, error_message
+        
+        if tokens_data and len(tokens_data) > 0:
+            return tokens_data[0]["token"], None
+        
+        return None, f"No token found for email '{email}'"
+
     def validate_email_exists(self, email: str) -> bool:
         """
         Check if email exists in the mapping.
@@ -89,7 +137,7 @@ class EmailTokenService:
     
     def get_key_by_email(self, email: str) -> Optional[str]:
         """
-        Get key for given email address.
+        Get key for given email address (backwards compatible - returns first key).
         
         Args:
             email (str): Email address to look up
@@ -101,4 +149,11 @@ class EmailTokenService:
             return None
         
         email = email.strip().lower()
-        return self.clients_emails.get(email)
+        keys_data = self.clients_emails.get(email)
+        
+        if isinstance(keys_data, str):
+            return keys_data
+        elif isinstance(keys_data, list) and len(keys_data) > 0:
+            return keys_data[0]
+        
+        return None
