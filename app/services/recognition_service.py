@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from deepface import DeepFace
 from PIL import Image
+from io import BytesIO
 import numpy as np
 from app.services.image_service import ImageService
 
@@ -31,8 +32,28 @@ class RecognitionService:
             logger.info("Starting face recognition process")
             start_time = time.time()
             
-            # Prvo smanjimo veličinu slike
-            resized_image = ImageService.resize_image(image_bytes)
+            # Prvo dobijamo dimenzije originalne slike
+            from PIL import Image
+            # Proverimo tip i izvučimo bytes ako je potrebno
+            if hasattr(image_bytes, 'getvalue'):
+                # Ako je BytesIO objekat
+                actual_bytes = image_bytes.getvalue()
+                image_bytes.seek(0)  # Reset pointer za slučaj da se koristi ponovo
+            else:
+                # Ako su već bytes
+                actual_bytes = image_bytes
+            
+            original_image = Image.open(BytesIO(actual_bytes))
+            original_width, original_height = original_image.size
+            logger.info(f"Original image dimensions: {original_width}x{original_height}")
+            
+            # Smanjimo veličinu slike - proslijedi bytes
+            resized_image = ImageService.resize_image(actual_bytes)
+            
+            # Dobijamo dimenzije smanjene slike
+            resized_pil = Image.open(resized_image)
+            resized_width, resized_height = resized_pil.size
+            logger.info(f"Resized image dimensions: {resized_width}x{resized_height}")
             
             # Očisti domain za putanju
             clean_domain = RecognitionService.clean_domain_for_path(domain)
@@ -71,8 +92,15 @@ class RecognitionService:
                     silent=False
                 )
                 
-                # Analiziramo rezultate
-                result = RecognitionService.analyze_recognition_results(dfs)
+                # Analiziramo rezultate sa dimenzijama slike
+                result = RecognitionService.analyze_recognition_results(
+                    dfs, 
+                    threshold=0.35,
+                    original_width=original_width,
+                    original_height=original_height,
+                    resized_width=resized_width,
+                    resized_height=resized_height
+                )
                 logger.info(f"Recognition completed in {time.time() - start_time:.2f}s")
                 return result
                 
@@ -87,19 +115,20 @@ class RecognitionService:
         finally:
             # Čišćenje
             try:
-                if os.path.exists(image_path):
+                if 'image_path' in locals() and os.path.exists(image_path):
                     os.remove(image_path)
                     logger.info(f"Cleaned up temporary file: {image_path}")
             except Exception as e:
                 logger.error(f"Error cleaning up temporary file: {str(e)}")
 
     @staticmethod
-    def analyze_recognition_results(results, threshold=0.4):
+    def analyze_recognition_results(results, threshold=0.4, original_width=None, original_height=None, resized_width=None, resized_height=None):
         """
         Analizira rezultate prepoznavanja i vraća najverovatnije ime.
         """
         name_scores = defaultdict(list)
         all_matches = defaultdict(list)
+        face_coordinates_map = defaultdict(list)  # Nova mapa za koordinate
         
         logger.info("Analyzing recognition results...")
         
@@ -121,6 +150,27 @@ class RecognitionService:
                                 distance = float(row['distance'])
                                 full_path = row['identity']
                                 
+                                # Izvlačimo koordinate lica sa smanjene slike
+                                face_coords = None
+                                if all(dim is not None for dim in [original_width, original_height, resized_width, resized_height]):
+                                    try:
+                                        source_x = float(row['source_x'])
+                                        source_y = float(row['source_y'])
+                                        source_w = float(row['source_w'])
+                                        source_h = float(row['source_h'])
+                                        
+                                        # Konvertujemo u procente originalne slike
+                                        face_coords = {
+                                            "x_percent": round((source_x / resized_width) * 100, 2),
+                                            "y_percent": round((source_y / resized_height) * 100, 2),
+                                            "width_percent": round((source_w / resized_width) * 100, 2),
+                                            "height_percent": round((source_h / resized_height) * 100, 2)
+                                        }
+                                        logger.debug(f"Face coordinates: {face_coords}")
+                                    except (KeyError, ValueError) as coord_error:
+                                        logger.warning(f"Could not extract face coordinates: {coord_error}")
+                                        face_coords = None
+                                
                                 # Izvlačimo ime osobe (sve do datuma)
                                 if '\\' in full_path:  # Windows putanja
                                     filename = full_path.split('\\')[-1]
@@ -140,6 +190,8 @@ class RecognitionService:
                                 
                                 # Store all matches
                                 all_matches[normalized_name].append(distance)
+                                if face_coords:
+                                    face_coordinates_map[normalized_name].append(face_coords)
                                 logger.debug(f"Found match: {normalized_name} with distance {distance}")
                                 
                                 # Store matches that pass threshold
@@ -252,15 +304,24 @@ class RecognitionService:
             else:
                 formatted_display_name = person_name
             
-            recognized_persons.append(formatted_display_name)
+            # Uzmi samo prve koordinate za tu osobu (sve su iste jer se odnose na istu lokaciju na ulaznoj slici)
+            coords_list = face_coordinates_map.get(person_name, [])
+            face_coordinates = coords_list[0] if coords_list else None
+            
+            # Dodajemo objekat sa imenom i jednim setom koordinata
+            person_obj = {
+                "name": formatted_display_name,
+                "face_coordinates": face_coordinates
+            }
+            recognized_persons.append(person_obj)
         
-        logger.info(f"All recognized persons: {recognized_persons}")
+        logger.info(f"All recognized persons: {[p['name'] for p in recognized_persons]}")
         
         return {
             "status": "success",
             "message": f"Face recognized as: {display_name}",
             "person": display_name,  # Koristimo originalno ili formatirano ime
-            "recognized_persons": recognized_persons,  # Novi niz svih prepoznatih osoba
+            "recognized_persons": recognized_persons,  # Novi niz objekata sa imenima i koordinatama
             "best_match": {
                 "person_name": best_name,  # Originalno normalizovano ime
                 "display_name": display_name,  # Ime za prikaz (originalno ili formatirano)
