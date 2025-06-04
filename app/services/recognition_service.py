@@ -241,10 +241,26 @@ class RecognitionService:
         else:
             display_name = best_name
         
+        # Kreiraj niz svih prepoznatih osoba koje su prošle threshold
+        recognized_persons = []
+        for person_name in name_scores.keys():
+            original_person = TextService.get_original_text(person_name)
+            if original_person != person_name:
+                formatted_display_name = original_person
+            elif '_' in person_name:
+                formatted_display_name = person_name.replace('_', ' ')
+            else:
+                formatted_display_name = person_name
+            
+            recognized_persons.append(formatted_display_name)
+        
+        logger.info(f"All recognized persons: {recognized_persons}")
+        
         return {
             "status": "success",
             "message": f"Face recognized as: {display_name}",
             "person": display_name,  # Koristimo originalno ili formatirano ime
+            "recognized_persons": recognized_persons,  # Novi niz svih prepoznatih osoba
             "best_match": {
                 "person_name": best_name,  # Originalno normalizovano ime
                 "display_name": display_name,  # Ime za prikaz (originalno ili formatirano)

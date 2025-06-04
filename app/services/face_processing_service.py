@@ -68,7 +68,7 @@ class FaceProcessingService:
             return False
 
     @staticmethod
-    def extract_faces_with_timeout(img_path, timeout_duration=70):
+    def extract_faces_with_timeout(img_path, image_id, person, timeout_duration=70):
         try:
             logger.info(f"Extracting faces from {img_path}")
             return DeepFace.extract_faces(img_path=img_path, enforce_detection=True, detector_backend='retinaface')
@@ -223,7 +223,7 @@ class FaceProcessingService:
 
             # Extract faces
             try:
-                face_objs = FaceProcessingService.extract_faces_with_timeout(image_path)
+                face_objs = FaceProcessingService.extract_faces_with_timeout(image_path, image_id, person)
                 if face_objs is not None:
                     logger.info(f"Detected {len(face_objs)} faces in the image.")
                 else:
@@ -231,11 +231,7 @@ class FaceProcessingService:
             except Exception as e:
                 logger.error(f"Face extraction failed with error: {str(e)}")
                 KyloService.send_skipped_info_to_kylo(image_id, person, "Face extraction failed.")
-                raise HTTPException(status_code=500, detail=f"Face extraction failed: {str(e)}")
-            
-
-
-            
+                raise Exception(f"Face extraction failed: {str(e)}")
 
             valid_faces = []
             invalid_faces = []
