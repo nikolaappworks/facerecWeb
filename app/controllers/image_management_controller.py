@@ -43,17 +43,17 @@ class ImageManagementController:
                     "recognition_started": False
                 }
             
-            # Start background thread for face recognition
-            thread = threading.Thread(
-                target=ImageManagementController._run_face_recognition_in_background,
-                args=(test_image_path, domain)
-            )
-            thread.daemon = True
-            thread.start()
+            # # Start background thread for face recognition
+            # thread = threading.Thread(
+            #     target=ImageManagementController._run_face_recognition_in_background,
+            #     args=(test_image_path, domain)
+            # )
+            # thread.daemon = True
+            # thread.start()
             
             return {
                 "success": True,
-                "message": f"Image successfully deleted: {filename}. Face recognition update started in background.",
+                "message": f"Image successfully deleted: {filename}.",
                 "data": result,
                 "recognition_started": True
             }
@@ -119,12 +119,12 @@ class ImageManagementController:
                 # Check if test image exists
                 if os.path.exists(test_image_path):
                     # Start background thread for face recognition
-                    thread = threading.Thread(
-                        target=ImageManagementController._run_face_recognition_in_background,
-                        args=(test_image_path, domain)
-                    )
-                    thread.daemon = True
-                    thread.start()
+                    # thread = threading.Thread(
+                    #     target=ImageManagementController._run_face_recognition_in_background,
+                    #     args=(test_image_path, domain)
+                    # )
+                    # thread.daemon = True
+                    # thread.start()
                     recognition_started = True
                 else:
                     logger.warning(f"Test image does not exist at path: {test_image_path}")
