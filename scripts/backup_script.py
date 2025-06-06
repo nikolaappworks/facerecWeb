@@ -24,16 +24,25 @@ class BackupManager:
         self.max_backups = max_backups
         self.current_date = datetime.now().strftime("%Y-%m-%d")
         
-        # Setup logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('storage/backup.log'),
-                logging.StreamHandler()
-            ]
-        )
+        # Setup logging - only errors to file, everything to console
         self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+        
+        # Console handler - for all messages
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_format = logging.Formatter('%(levelname)s - %(message)s')
+        console_handler.setFormatter(console_format)
+        
+        # File handler - only for errors
+        file_handler = logging.FileHandler('storage/backup_errors.log')
+        file_handler.setLevel(logging.ERROR)
+        file_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(file_format)
+        
+        # Add handlers to logger
+        self.logger.addHandler(console_handler)
+        self.logger.addHandler(file_handler)
 
     def ensure_backup_directory_exists(self) -> None:
         """Create backup directory if it doesn't exist"""
