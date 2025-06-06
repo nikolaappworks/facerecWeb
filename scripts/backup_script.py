@@ -35,7 +35,7 @@ class BackupManager:
         console_handler.setFormatter(console_format)
         
         # File handler - only for errors
-        file_handler = logging.FileHandler('storage/backup_errors.log')
+        file_handler = logging.FileHandler('storage/logs/backup_errors.log')
         file_handler.setLevel(logging.ERROR)
         file_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(file_format)
