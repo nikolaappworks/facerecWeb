@@ -122,6 +122,61 @@ class RecognitionService:
                 logger.error(f"Error cleaning up temporary file: {str(e)}")
 
     @staticmethod
+    def are_coordinates_similar(coord1, coord2, tolerance=10):
+        """
+        Proverava da li su koordinate dovoljno slične (u procentima).
+        tolerance: razlika u procentima za x, y koordinate
+        """
+        if not coord1 or not coord2:
+            return False
+        
+        x_diff = abs(coord1['x_percent'] - coord2['x_percent'])
+        y_diff = abs(coord1['y_percent'] - coord2['y_percent'])
+        
+        return x_diff <= tolerance and y_diff <= tolerance
+    
+    @staticmethod
+    def group_matches_by_coordinates(matches_with_coords, tolerance=10):
+        """
+        Grupira prepoznate osobe po sličnim koordinatama i zadržava samo onu sa najvećim confidence-om
+        """
+        if not matches_with_coords:
+            return []
+        
+        grouped_matches = []
+        used_indices = set()
+        
+        for i, match in enumerate(matches_with_coords):
+            if i in used_indices:
+                continue
+                
+            # Kreiraj grupu za trenutni match
+            current_group = [match]
+            used_indices.add(i)
+            
+            # Pronađi sve ostale matches sa sličnim koordinatama
+            for j, other_match in enumerate(matches_with_coords):
+                if j in used_indices:
+                    continue
+                    
+                if RecognitionService.are_coordinates_similar(
+                    match.get('face_coords'), 
+                    other_match.get('face_coords'), 
+                    tolerance
+                ):
+                    current_group.append(other_match)
+                    used_indices.add(j)
+            
+            # Iz grupe izaberi match sa najmanjom distance (najvećim confidence-om)
+            best_match_in_group = min(current_group, key=lambda x: x['distance'])
+            grouped_matches.append(best_match_in_group)
+            
+            if len(current_group) > 1:
+                logger.info(f"Grouped {len(current_group)} matches at similar coordinates, selected: {best_match_in_group['name']} (confidence: {round((1 - best_match_in_group['distance']) * 100, 2)}%)")
+        
+        return grouped_matches
+
+    @staticmethod
     def analyze_recognition_results(results, threshold=0.4, original_width=None, original_height=None, resized_width=None, resized_height=None):
         """
         Analizira rezultate prepoznavanja i vraća najverovatnije ime.
@@ -129,6 +184,7 @@ class RecognitionService:
         name_scores = defaultdict(list)
         all_matches = defaultdict(list)
         face_coordinates_map = defaultdict(list)  # Nova mapa za koordinate
+        matches_with_coords = []  # Lista svih match-ova sa koordinatama
         
         logger.info("Analyzing recognition results...")
         
@@ -188,16 +244,20 @@ class RecognitionService:
                                 
                                 normalized_name = name.strip()
                                 
-                                # Store all matches
+                                # Store match sa koordinatama za grupiranje
+                                match_data = {
+                                    'name': normalized_name,
+                                    'distance': distance,
+                                    'face_coords': face_coords,
+                                    'full_path': full_path
+                                }
+                                matches_with_coords.append(match_data)
+                                
+                                # Store all matches (za kompatibilnost)
                                 all_matches[normalized_name].append(distance)
                                 if face_coords:
                                     face_coordinates_map[normalized_name].append(face_coords)
                                 logger.debug(f"Found match: {normalized_name} with distance {distance}")
-                                
-                                # Store matches that pass threshold
-                                if distance < threshold:
-                                    name_scores[normalized_name].append(distance)
-                                    logger.debug(f"Match passed threshold: {normalized_name} with distance {distance}")
                             except Exception as e:
                                 logger.warning(f"Error processing row: {str(e)}")
                                 continue
@@ -208,6 +268,31 @@ class RecognitionService:
         except Exception as e:
             logger.error(f"Error processing results: {str(e)}")
             return {"status": "error", "message": "Error processing recognition results"}
+
+        # Grupiranje match-ova po koordinatama 
+        logger.info(f"Total matches before grouping: {len(matches_with_coords)}")
+        grouped_matches = RecognitionService.group_matches_by_coordinates(matches_with_coords, tolerance=10)
+        logger.info(f"Total matches after grouping: {len(grouped_matches)}")
+        
+        # Kreiranje novih struktura podataka na osnovu grupiranih rezultata
+        name_scores = defaultdict(list)
+        all_matches = defaultdict(list)
+        face_coordinates_map = defaultdict(list)
+        
+        for match in grouped_matches:
+            name = match['name']
+            distance = match['distance']
+            face_coords = match['face_coords']
+            
+            # Store all matches
+            all_matches[name].append(distance)
+            if face_coords:
+                face_coordinates_map[name].append(face_coords)
+                
+            # Store matches that pass threshold
+            if distance < threshold:
+                name_scores[name].append(distance)
+                logger.debug(f"Grouped match passed threshold: {name} with distance {distance}")
 
         # Log summary of all matches found
         logger.info(f"\n{'='*50}")
