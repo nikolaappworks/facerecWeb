@@ -185,6 +185,7 @@ class RecognitionService:
         all_matches = defaultdict(list)
         face_coordinates_map = defaultdict(list)  # Nova mapa za koordinate
         matches_with_coords = []  # Lista svih match-ova sa koordinatama
+        original_deepface_results = {}  # Čuva originalne DeepFace rezultate po imenu
         
         logger.info("Analyzing recognition results...")
         
@@ -252,6 +253,11 @@ class RecognitionService:
                                     'full_path': full_path
                                 }
                                 matches_with_coords.append(match_data)
+                                
+                                # Čuvaj originalne DeepFace rezultate za svaku osobu
+                                if normalized_name not in original_deepface_results:
+                                    original_deepface_results[normalized_name] = []
+                                original_deepface_results[normalized_name].append(dict(row))
                                 
                                 # Store all matches (za kompatibilnost)
                                 all_matches[normalized_name].append(distance)
@@ -401,6 +407,21 @@ class RecognitionService:
             recognized_persons.append(person_obj)
         
         logger.info(f"All recognized persons: {[p['name'] for p in recognized_persons]}")
+        
+        # Logiraj originalne DeepFace rezultate za finalne prepoznate osobe
+        logger.info("\n" + "="*80)
+        logger.info("ORIGINAL DEEPFACE RESULTS FOR FINAL RECOGNIZED PERSONS:")
+        logger.info("="*80)
+        for person_name in name_scores.keys():
+            if person_name in original_deepface_results:
+                logger.info(f"\nPerson: {person_name}")
+                logger.info("-" * 50)
+                for i, result in enumerate(original_deepface_results[person_name]):
+                    logger.info(f"DeepFace Result #{i+1}:")
+                    for key, value in result.items():
+                        logger.info(f"  {key}: {value}")
+                    logger.info("-" * 30)
+        logger.info("="*80 + "\n")
         
         return {
             "status": "success",
