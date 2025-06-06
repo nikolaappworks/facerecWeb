@@ -34,6 +34,10 @@ class BackupManager:
         console_format = logging.Formatter('%(levelname)s - %(message)s')
         console_handler.setFormatter(console_format)
         
+        # Ensure logs directory exists
+        logs_dir = Path('storage/logs')
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        
         # File handler - only for errors
         file_handler = logging.FileHandler('storage/logs/backup_errors.log')
         file_handler.setLevel(logging.ERROR)
