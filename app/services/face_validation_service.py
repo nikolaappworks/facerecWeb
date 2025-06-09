@@ -120,13 +120,14 @@ class FaceValidationService:
         }
     
     @staticmethod
-    def analyze_and_filter_by_size(items, size_threshold=0.7):
+    def analyze_and_filter_by_size(items, size_threshold=0.7, absolute_min_area=30000):
         """
         Analizira lica ili slike i zadržava samo najveće
         
         Args:
             items (list): Lista sa informacijama o licima ili slikama
             size_threshold (float): Prag za zadržavanje (0.0-1.0)
+            absolute_min_area (int): Apsolutna minimalna površina za zadržavanje
             
         Returns:
             tuple: (items_to_keep, items_to_delete)
@@ -156,22 +157,50 @@ class FaceValidationService:
         # Definišemo prag - zadržati items koji su najmanje X% veličine najvećeg
         min_required_area = largest_area * size_threshold
         
+        print(f"📊 Kriterijumi za zadržavanje:")
+        print(f"   📈 Procenat od najvećeg: {size_threshold*100}% (minimalno {min_required_area:.0f} piksela)")
+        print(f"   📏 Apsolutna minimalna površina: {absolute_min_area} piksela")
+        
+        logger.info(f"Filter criteria: {size_threshold*100}% of largest ({min_required_area:.0f} pixels) OR absolute minimum {absolute_min_area} pixels")
+        
         items_to_keep = []
         items_to_delete = []
         
         for item_info in items:
-            if item_info['area'] >= min_required_area:
+            area = item_info['area']
+            percentage_of_largest = (area / largest_area) * 100
+            
+            # Hibridni kriterijum: zadržati ako zadovoljava bilo koji od kriterijuma
+            meets_percentage_threshold = area >= min_required_area
+            meets_absolute_threshold = area >= absolute_min_area
+            keep_item = meets_percentage_threshold or meets_absolute_threshold
+            
+            if keep_item:
                 items_to_keep.append(item_info)
+                
+                # Objasni zašto je zadržano
+                reasons = []
+                if meets_percentage_threshold:
+                    reasons.append(f"{percentage_of_largest:.1f}% od najvećeg")
+                if meets_absolute_threshold:
+                    reasons.append(f"dovoljno veliko ({area} ≥ {absolute_min_area})")
+                
+                reason_text = " + ".join(reasons)
+                
                 if has_path:
-                    print(f"✅ Zadržavam: {item_info['path']} (površina: {item_info['area']}, {round((item_info['area']/largest_area)*100, 1)}% od najveće)")
+                    print(f"✅ Zadržavam: {item_info['path']} (površina: {area}, {reason_text})")
                 else:
-                    print(f"✅ Zadržavam: Lice {item_info['index']} (površina: {item_info['area']}, {round((item_info['area']/largest_area)*100, 1)}% od najvećeg)")
+                    print(f"✅ Zadržavam: Lice {item_info['index']} (površina: {area}, {reason_text})")
+                    
+                logger.info(f"Keeping item with area {area}: {reason_text}")
             else:
                 items_to_delete.append(item_info)
                 if has_path:
-                    print(f"❌ Brišem: {item_info['path']} (površina: {item_info['area']}, {round((item_info['area']/largest_area)*100, 1)}% od najveće)")
+                    print(f"❌ Brišem: {item_info['path']} (površina: {area}, {percentage_of_largest:.1f}% od najveće, ispod oba praga)")
                 else:
-                    print(f"❌ Odbacujem: Lice {item_info['index']} (površina: {item_info['area']}, {round((item_info['area']/largest_area)*100, 1)}% od najvećeg)")
+                    print(f"❌ Odbacujem: Lice {item_info['index']} (površina: {area}, {percentage_of_largest:.1f}% od najvećeg, ispod oba praga)")
+                    
+                logger.info(f"Rejecting item with area {area}: {percentage_of_largest:.1f}% of largest, below both thresholds")
         
         return items_to_keep, items_to_delete
     
@@ -194,19 +223,20 @@ class FaceValidationService:
 
     
     @staticmethod
-    def process_face_filtering(face_infos, size_threshold=0.7):
+    def process_face_filtering(face_infos, size_threshold=0.7, absolute_min_area=30000):
         """
         Kompletna obrada filtriranja lica po veličini
         
         Args:
             face_infos (list): Lista informacija o licima
-            size_threshold (float): Prag za zadržavanje lica
+            size_threshold (float): Prag za zadržavanje lica (0.0-1.0)
+            absolute_min_area (int): Apsolutna minimalna površina za zadržavanje
             
         Returns:
             list: Lista zadržanih lica
         """
         if len(face_infos) > 1:
-            faces_to_keep, faces_to_delete = FaceValidationService.analyze_and_filter_by_size(face_infos, size_threshold)
+            faces_to_keep, faces_to_delete = FaceValidationService.analyze_and_filter_by_size(face_infos, size_threshold, absolute_min_area)
             
             print(f"🎯 Finalno zadržano {len(faces_to_keep)} od {len(face_infos)} lica")
             logger.info(f"Final result: kept {len(faces_to_keep)} out of {len(face_infos)} faces")
