@@ -88,6 +88,7 @@ class RecognitionService:
                     detector_backend=detector_backend,
                     distance_metric=distance_metric,
                     enforce_detection=True,
+                    align=True,
                     threshold=0.35,
                     silent=False
                 )
