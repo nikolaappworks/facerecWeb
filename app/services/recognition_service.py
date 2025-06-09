@@ -1,12 +1,16 @@
 import os
 import time
 import logging
+import cv2
+import pandas as pd
 from collections import defaultdict
 from deepface import DeepFace
 from PIL import Image
 from io import BytesIO
 import numpy as np
 from app.services.image_service import ImageService
+from app.services.face_processing_service import FaceProcessingService
+from app.services.face_validation_service import FaceValidationService
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
@@ -24,6 +28,191 @@ class RecognitionService:
         return domain
 
     @staticmethod
+    def validate_face_confidence_and_eyes(face, index):
+        """
+        Validira confidence i koordinate očiju za lice
+        
+        Args:
+            face (dict): Face objekat sa facial_area i confidence
+            index (int): Indeks lica
+            
+        Returns:
+            bool: True ako je lice validno
+        """
+        facial_area = face["facial_area"]
+        confidence = face.get("confidence", 1)
+
+        print(f"\n➡️ Lice {index}: {facial_area}, Confidence={confidence:.3f}")
+
+        if confidence >= 0.99:
+            # Check if left_eye and right_eye coordinates are identical
+            if FaceValidationService.has_identical_eye_coordinates(facial_area):
+                left_eye = facial_area.get("left_eye")
+                print(f"⚠️ Lice {index} ima identične koordinate za levo i desno oko ({left_eye}) - preskačem.")
+                logger.info(f"Face {index} has identical left_eye and right_eye coordinates ({left_eye}) - skipping")
+                return False
+
+            print("✅ Validno lice - radim prepoznavanje.")
+            return True
+        else:
+            print("⚠️ Niska sigurnost detekcije - preskačem ovo lice.")
+            return False
+
+
+
+    @staticmethod
+    def check_face_blur_and_create_info(cropped_face, facial_area, index, original_width, original_height, resized_width, resized_height):
+        """
+        Proverava zamagljenost lica i kreira info objekat ako je lice validno
+        
+        Args:
+            cropped_face (np.array): Array slike
+            facial_area (dict): Koordinate lica
+            index (int): Indeks lica
+            original_width (int): Širina originalne slike
+            original_height (int): Visina originalne slike
+            resized_width (int): Širina resized slike
+            resized_height (int): Visina resized slike
+            
+        Returns:
+            dict or None: Info objekat ako je lice validno, None ako nije
+        """
+        try:
+            # Convert cropped face to format needed for blur detection
+            # The is_blurred method expects normalized array (0-1 range)
+            cropped_face_normalized = cropped_face.astype(np.float32) / 255.0
+            
+            # Check if face is blurry
+            is_blurry = FaceProcessingService.is_blurred(cropped_face_normalized, 1)
+            
+            if is_blurry:
+                print(f"⚠️ Lice {index} je zamagljeno - odbacujem.")
+                logger.info(f"Face {index} is blurry - rejecting")
+                return None
+            else:
+                print(f"✅ Lice {index} je oštro - dodajem u validne.")
+                logger.info(f"Face {index} is sharp - adding to valid faces")
+                # Kreiraj info objekat sa originalnim koordinatama
+                return FaceValidationService.create_face_info(
+                    facial_area, index, original_width, original_height, resized_width, resized_height
+                )
+                
+        except Exception as blur_error:
+            logger.error(f"Error checking blur for face {index}: {str(blur_error)}")
+            print(f"❌ Greška pri proveri zamućenosti lica {index}: {str(blur_error)}")
+            return None
+
+    @staticmethod
+    def process_single_face(face, index, image_path, original_width, original_height, resized_width, resized_height):
+        """
+        Obrađuje jedno lice kroz sve validacije
+        
+        Args:
+            face (dict): Face objekat
+            index (int): Indeks lica  
+            image_path (str): Putanja do originalne slike
+            original_width (int): Širina originalne slike
+            original_height (int): Visina originalne slike
+            resized_width (int): Širina resized slike
+            resized_height (int): Visina resized slike
+            
+        Returns:
+            dict or None: Info objekat validnog lica ili None
+        """
+        # Validacija confidence-a i koordinata očiju
+        if not RecognitionService.validate_face_confidence_and_eyes(face, index):
+            return None
+        
+        facial_area = face["facial_area"]
+        
+        # Crop lice samo za proveru blur-a (ne čuvamo sliku)
+        img_cv = cv2.imread(image_path)
+        x = facial_area["x"]
+        y = facial_area["y"]
+        w = facial_area["w"]
+        h = facial_area["h"]
+        cropped_face = img_cv[y:y+h, x:x+w]
+        
+        # Provera zamagljenosti i kreiranje info objekta
+        return RecognitionService.check_face_blur_and_create_info(
+            cropped_face, facial_area, index, original_width, original_height, resized_width, resized_height
+        )
+
+    @staticmethod
+    def filter_recognition_results_by_valid_faces(results, valid_faces, resized_width, resized_height):
+        """
+        Filtrira rezultate DeepFace.find na osnovu validnih lica
+        
+        Args:
+            results: Rezultati DeepFace.find
+            valid_faces (list): Lista validnih lica
+            resized_width (int): Širina resized slike
+            resized_height (int): Visina resized slike
+            
+        Returns:
+            Filtrirani rezultati
+        """
+        if not valid_faces or not results:
+            return results
+        
+        logger.info(f"Filtering recognition results based on {len(valid_faces)} valid faces")
+        
+        # Kreiraj koordinate validnih lica u resized formatu za poređenje
+        valid_coordinates = []
+        for face_info in valid_faces:
+            resized_coords = face_info['resized_coordinates']
+            valid_coordinates.append({
+                'x': resized_coords['x'],
+                'y': resized_coords['y'],
+                'w': resized_coords['w'],
+                'h': resized_coords['h'],
+                'index': face_info['index']
+            })
+        
+        filtered_results = []
+        
+        # DeepFace.find vraća listu DataFrame-ova
+        if isinstance(results, list):
+            for df in results:
+                if hasattr(df, 'iterrows'):
+                    filtered_rows = []
+                    for _, row in df.iterrows():
+                        try:
+                            # Dobij koordinate iz rezultata
+                            source_x = float(row['source_x'])
+                            source_y = float(row['source_y'])
+                            source_w = float(row['source_w'])
+                            source_h = float(row['source_h'])
+                            
+                            # Proveri da li se poklapaju sa bilo kojim validnim licem
+                            for valid_coord in valid_coordinates:
+                                # Tolerancija za poređenje koordinata (u pikselima)
+                                tolerance = 5
+                                
+                                if (abs(source_x - valid_coord['x']) <= tolerance and
+                                    abs(source_y - valid_coord['y']) <= tolerance and
+                                    abs(source_w - valid_coord['w']) <= tolerance and
+                                    abs(source_h - valid_coord['h']) <= tolerance):
+                                    
+                                    filtered_rows.append(row)
+                                    logger.info(f"Match found for valid face {valid_coord['index']} at coordinates ({source_x}, {source_y}, {source_w}, {source_h})")
+                                    break
+                        except Exception as e:
+                            logger.warning(f"Error processing recognition result row: {str(e)}")
+                            continue
+                    
+                    # Kreiraj novi DataFrame sa filtriranim redovima
+                    if filtered_rows:
+                        filtered_df = pd.DataFrame(filtered_rows)
+                        filtered_results.append(filtered_df)
+                    else:
+                        # Dodaj prazan DataFrame da održimo strukturu
+                        filtered_results.append(df.iloc[0:0])  # Prazan DataFrame sa istim kolonama
+        
+        logger.info(f"Filtered results: {len(filtered_results)} DataFrames with recognition matches")
+        return filtered_results
+
+    @staticmethod
     def recognize_face(image_bytes, domain):
         """
         Prepoznaje lice iz prosleđene slike
@@ -34,7 +223,7 @@ class RecognitionService:
             
             # Prvo dobijamo dimenzije originalne slike
             from PIL import Image
-            # Proverimo tip i izvučimo bytes ako je potrebno
+            # Proverimo tip i izvučemo bytes ako je potrebno
             if hasattr(image_bytes, 'getvalue'):
                 # Ako je BytesIO objekat
                 actual_bytes = image_bytes.getvalue()
@@ -68,6 +257,40 @@ class RecognitionService:
                 f.write(resized_image.getvalue())
             logger.info(f"Resized image saved temporarily at: {image_path}")
             
+            #     # Definišemo parametre
+            model_name = "VGG-Face"
+            detector_backend = "retinaface"
+            distance_metric = "cosine"
+            db_path = os.path.join('storage/recognized_faces_prod', clean_domain)
+
+            # Extract faces
+            faces = DeepFace.extract_faces(
+                img_path=image_path,
+                detector_backend=detector_backend,
+                enforce_detection=False,
+                normalize_face=True,
+                align=True
+            )
+
+            if len(faces) == 0:
+                print("❌ Nema nijednog lica.")
+            else:
+                print(f"✅ Pronađeno lica: {len(faces)}")
+
+                # Lista za čuvanje informacija o validnim licima (ne čuvamo fizičke slike)
+                valid_faces = []
+
+                # Obradi svako lice kroz sve validacije
+                for i, face in enumerate(faces):
+                    face_info = RecognitionService.process_single_face(
+                        face, i+1, image_path, original_width, original_height, resized_width, resized_height
+                    )
+                    if face_info:
+                        valid_faces.append(face_info)
+
+                # Finalna provera - zadržati samo najveća lica
+                final_valid_faces = FaceValidationService.process_face_filtering(valid_faces)
+                
             try:
                 # Definišemo parametre
                 model_name = "VGG-Face"
@@ -92,9 +315,16 @@ class RecognitionService:
                     silent=False
                 )
                 
-                # Analiziramo rezultate sa dimenzijama slike
+                # Logiraj detaljno sve pronađene osobe pre filtriranja
+                RecognitionService.log_deepface_results(dfs)
+                # Filtriraj rezultate na osnovu validnih lica
+                filtered_dfs = RecognitionService.filter_recognition_results_by_valid_faces(
+                    dfs, final_valid_faces, resized_width, resized_height
+                )
+                
+                # Analiziramo filtrirane rezultate sa dimenzijama slike
                 result = RecognitionService.analyze_recognition_results(
-                    dfs, 
+                    filtered_dfs, 
                     threshold=0.35,
                     original_width=original_width,
                     original_height=original_height,
@@ -454,3 +684,158 @@ class RecognitionService:
                 for name, distances in all_matches.items()
             ]
         }
+
+    @staticmethod
+    def log_deepface_results(results):
+        """
+        Logiraj detaljno sve rezultate DeepFace.find pre filtriranja
+        
+        Args:
+            results: Rezultati DeepFace.find (lista DataFrame-ova)
+        """
+        logger.info("\n" + "="*80)
+        logger.info("DEEPFACE.FIND RESULTS - ALL FOUND MATCHES (PRE FILTRIRANJE)")
+        logger.info("="*80)
+        
+        if not results or len(results) == 0:
+            logger.info("❌ Nema rezultata od DeepFace.find")
+            print("❌ Nema rezultata od DeepFace.find")
+            return
+        
+        total_matches = 0
+        all_persons = {}  # Dictionary za grupisanje po imenima
+        
+        # Analiziraj svaki DataFrame
+        for df_index, df in enumerate(results):
+            logger.info(f"\n📊 DataFrame {df_index + 1}:")
+            print(f"\n📊 Analiziram DataFrame {df_index + 1}:")
+            
+            if hasattr(df, 'iterrows') and len(df) > 0:
+                logger.info(f"   Broj pronađenih match-ova: {len(df)}")
+                print(f"   Broj pronađenih match-ova: {len(df)}")
+                
+                for row_index, row in df.iterrows():
+                    try:
+                        # Izvuci osnovne informacije
+                        identity_path = row['identity']
+                        distance = float(row['distance'])
+                        confidence = round((1 - distance) * 100, 2)
+                        
+                        # Koordinate lica
+                        source_x = float(row['source_x'])
+                        source_y = float(row['source_y'])
+                        source_w = float(row['source_w'])
+                        source_h = float(row['source_h'])
+                        
+                        # Ekstraktaj ime osobe iz putanje
+                        if '\\' in identity_path:  # Windows putanja
+                            filename = identity_path.split('\\')[-1]
+                        else:  # Unix putanja
+                            filename = identity_path.split('/')[-1]
+                        
+                        # Uzmi ime do prvog datuma
+                        name_parts = filename.split('_')
+                        person_name = []
+                        for part in name_parts:
+                            if len(part) >= 8 and (part[0:4].isdigit() or '-' in part):
+                                break
+                            person_name.append(part)
+                        person_name = '_'.join(person_name)
+                        
+                        # Logiraj detalje match-a
+                        logger.info(f"   ➡️ Match {row_index + 1}:")
+                        logger.info(f"      👤 Osoba: {person_name}")
+                        logger.info(f"      📁 Putanja: {identity_path}")
+                        logger.info(f"      📏 Distance: {distance:.4f}")
+                        logger.info(f"      🎯 Confidence: {confidence}%")
+                        logger.info(f"      📍 Koordinate: x={source_x}, y={source_y}, w={source_w}, h={source_h}")
+                        
+                        print(f"   ➡️ Match {row_index + 1}: {person_name} - {confidence}% confidence")
+                        
+                        # Grupiši po imenima
+                        if person_name not in all_persons:
+                            all_persons[person_name] = []
+                        all_persons[person_name].append({
+                            'distance': distance,
+                            'confidence': confidence,
+                            'path': identity_path,
+                            'coordinates': f"x={source_x}, y={source_y}, w={source_w}, h={source_h}"
+                        })
+                        
+                        total_matches += 1
+                        
+                    except Exception as e:
+                        logger.error(f"   ❌ Greška pri obradi row-a {row_index}: {str(e)}")
+                        continue
+                        
+            else:
+                logger.info("   📭 Prazan DataFrame")
+                print("   📭 Prazan DataFrame")
+        
+        # Sumariziraj po osobama
+        logger.info(f"\n📈 SUMARNI PREGLED:")
+        logger.info(f"   🔢 Ukupno match-ova: {total_matches}")
+        logger.info(f"   👥 Različitih osoba: {len(all_persons)}")
+        
+        print(f"\n📈 SUMARNI PREGLED:")
+        print(f"   🔢 Ukupno match-ova: {total_matches}")
+        print(f"   👥 Različitih osoba: {len(all_persons)}")
+        
+        if all_persons:
+            logger.info(f"\n👤 OSOBE I NJIHOVI MATCH-OVI:")
+            print(f"\n👤 OSOBE I NJIHOVI MATCH-OVI:")
+            
+            for person_name, matches in all_persons.items():
+                avg_confidence = round(sum(match['confidence'] for match in matches) / len(matches), 2)
+                best_confidence = round(max(match['confidence'] for match in matches), 2)
+                
+                logger.info(f"   🏷️  {person_name}:")
+                logger.info(f"      📊 Broj match-ova: {len(matches)}")
+                logger.info(f"      🎯 Prosečna sigurnost: {avg_confidence}%")
+                logger.info(f"      ⭐ Najbolja sigurnost: {best_confidence}%")
+                
+                print(f"   🏷️  {person_name}: {len(matches)} match-ova (prosek: {avg_confidence}%, najbolja: {best_confidence}%)")
+                
+                # Logiraj sve match-ove za ovu osobu
+                for i, match in enumerate(matches):
+                    logger.info(f"      └─ Match {i+1}: {match['confidence']}% ({match['coordinates']})")
+        
+        logger.info("="*80 + "\n")
+        print("="*50)
+
+    @staticmethod
+    def log_valid_faces(valid_faces):
+        """
+        Logiraj validna lica koja su prošla sve provere
+        
+        Args:
+            valid_faces (list): Lista validnih lica
+        """
+        logger.info("\n" + "="*80)
+        logger.info("VALIDNA LICA KOJA SU PROŠLA SVE PROVERE")
+        logger.info("="*80)
+        
+        if not valid_faces or len(valid_faces) == 0:
+            logger.info("❌ Nema validnih lica nakon svih provera")
+            print("❌ Nema validnih lica nakon svih provera")
+            return
+        
+        logger.info(f"✅ Broj validnih lica: {len(valid_faces)}")
+        print(f"✅ Broj validnih lica: {len(valid_faces)}")
+        
+        for face_info in valid_faces:
+            logger.info(f"\n   👤 Lice {face_info['index']}:")
+            logger.info(f"      📏 Dimenzije: {face_info['width']}x{face_info['height']} (površina: {face_info['area']})")
+            
+            # Originalne koordinate
+            orig_coords = face_info['original_coordinates']
+            logger.info(f"      🎯 Originalne koordinate: x={orig_coords['x']}, y={orig_coords['y']}, w={orig_coords['w']}, h={orig_coords['h']}")
+            
+            # Resized koordinate (za poređenje sa DeepFace)
+            resized_coords = face_info['resized_coordinates']
+            logger.info(f"      🔍 Resized koordinate: x={resized_coords['x']}, y={resized_coords['y']}, w={resized_coords['w']}, h={resized_coords['h']}")
+            
+            print(f"   👤 Lice {face_info['index']}: {face_info['width']}x{face_info['height']} na poziciji ({resized_coords['x']}, {resized_coords['y']})")
+        
+        logger.info("="*80 + "\n")
+        print("="*50)
