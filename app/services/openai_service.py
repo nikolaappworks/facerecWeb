@@ -133,3 +133,4 @@ class OpenAIService:
                 "required": ["names"]
             }
         } 
+        
